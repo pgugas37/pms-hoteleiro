@@ -5,7 +5,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { RequireRole } from '@/components/RequireRole'
 import { AcessoNegadoPage } from '@/pages/AcessoNegadoPage'
 import { ConfiguracaoInicialPage } from '@/pages/ConfiguracaoInicialPage'
-import { HomePage } from '@/pages/HomePage'
+import { DashboardPage } from '@/pages/DashboardPage'
 import { HotelSettingsPage } from '@/pages/HotelSettingsPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
@@ -24,7 +24,7 @@ export const router = createBrowserRouter([
       {
         element: <AppLayout />,
         children: [
-          { path: '/', element: <HomePage /> },
+          { path: '/', element: <DashboardPage /> },
           { path: '/minha-conta', element: <TrocarSenhaPage /> },
           { path: '/hotel', element: <HotelSettingsPage /> },
           {

@@ -11,15 +11,10 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth-context'
 import { formatCep, formatCnpj } from '@/lib/format'
+import { fetchHotel } from '@/lib/hotel'
 import { supabase } from '@/lib/supabase'
 import { hotelSchema, type HotelInput } from '@/lib/validations'
-import { BRAZIL_STATES, BRAZIL_TIMEZONES, type Hotel } from '@/types/hotel'
-
-async function fetchHotel(): Promise<Hotel | null> {
-  const { data, error } = await supabase.from('hotels').select('*').limit(1).maybeSingle()
-  if (error) throw error
-  return data as Hotel | null
-}
+import { BRAZIL_STATES, BRAZIL_TIMEZONES } from '@/types/hotel'
 
 export function HotelSettingsPage() {
   const { profile } = useAuth()
