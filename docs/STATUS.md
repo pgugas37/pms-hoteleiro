@@ -32,7 +32,7 @@ Stack de frontend aprovada: React 18 + TypeScript + Vite + Tailwind CSS + shadcn
 
 ## Módulo 01 — Fundação e arquitetura
 
-Aprovado. Schema base criado.
+Schema aprovado. Frontend: scaffold criado neste repositório — Vite + React 18 + TypeScript + Tailwind CSS + shadcn/ui (componente `Button` já incluído) + React Router + TanStack Query, cliente Supabase configurado (`src/lib/supabase.ts`) e uma página inicial que verifica a conexão com o Supabase. Falta rodar `pnpm install && pnpm dev` no computador do Gustavo para validar.
 
 ## Módulo 02 — Autenticação, usuários e permissões
 
@@ -59,14 +59,22 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 - O sandbox de nuvem usado pelo Claude bloqueia `git push` para repositórios não pré-autorizados (proxy de segurança), e também bloqueia conexões de rede diretas para o host do projeto Supabase (`*.supabase.co`). Por isso, git e Supabase precisam ser operados a partir do computador do Gustavo (ou de CI), não de dentro do sandbox.
 - Nesta retomada, o Claude passou a ter acesso de arquivos ao computador do Gustavo (via ponte do app desktop), mas **sem shell remoto** — ou seja, o Claude escreve/atualiza arquivos diretamente na pasta do projeto, mas comandos como `git init`, `git push` e a CLI do Supabase precisam ser rodados pelo próprio Gustavo no terminal dele.
 
-## Repositório Git
+## Repositório Git — configurado ✅
 
-- Repositório anterior (`pgugas37/hotel`) não está mais acessível publicamente — provavelmente privado, possivelmente renomeado ou apagado.
-- Decisão: criar um novo repositório no GitHub para retomar o versionamento real a partir daqui.
+- Repositório anterior (`pgugas37/hotel`) não estava mais acessível publicamente — decisão foi criar um novo.
+- Repositório atual: `https://github.com/pgugas37/pms-hoteleiro.git`, branch `main`.
+- Primeiro commit feito e enviado a partir do computador do Gustavo (`git init` → `git add` → `git commit` → `git push -u origin main`), já com `README.md`, `.gitignore`, `.env.example` e este `docs/STATUS.md`.
+
+## Supabase (CLI local) — configurado ✅
+
+- `.env.local` criado na pasta do projeto com `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (chave publicável/anon — segura para o frontend, protegida pelas políticas de RLS).
+- Supabase CLI instalada via `npx supabase@latest` (instalação global via `npm install -g supabase` não é suportada) e autenticada (`npx supabase@latest login`, via GitHub OAuth).
+- Projeto vinculado localmente: `npx supabase@latest link --project-ref gbtxgprucctjpwqswdng` — concluído com sucesso.
 
 ## Próximos passos
 
-1. Confirmar/criar o repositório GitHub e subir este commit inicial (git + Supabase configurados).
-2. Reconstruir o código do frontend do Módulo 01 e 02 a partir do schema existente.
-3. Rodar `pnpm dev` localmente e criar o primeiro Administrador via `/configuracao-inicial`.
-4. Apresentar a especificação de pré-desenvolvimento do Módulo 03 para autorização.
+1. ~~Configurar git e Supabase.~~ **Concluído.**
+2. Rodar `pnpm install && pnpm dev` no computador do Gustavo para validar o scaffold do Módulo 01.
+3. Reconstruir o frontend do Módulo 02 (login, RBAC, CRUD de usuários) sobre esse scaffold.
+4. Rodar `pnpm dev` e criar o primeiro Administrador via `/configuracao-inicial`.
+5. Apresentar a especificação de pré-desenvolvimento do Módulo 03 para autorização.

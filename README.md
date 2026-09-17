@@ -19,15 +19,25 @@ Sistema de gestão hoteleira (PMS — Property Management System) sob medida, de
 
 As credenciais de desenvolvimento local ficam em `.env.local` (não versionado — veja `.env.example`).
 
+## Rodando localmente
+
+```bash
+npm install -g pnpm   # se ainda não tiver o pnpm instalado
+pnpm install
+pnpm dev
+```
+
+Abra o endereço que aparecer no terminal (normalmente `http://localhost:5173`). A página inicial confirma a conexão com o Supabase.
+
 ## Status
 
 Veja [`docs/STATUS.md`](./docs/STATUS.md) para o histórico de decisões, módulos concluídos e próximos passos.
 
 ## Módulos
 
-- [x] Módulo 01 — Fundação e arquitetura (schema base, aprovado)
-- [x] Módulo 02 — Autenticação, usuários e permissões (RBAC, RLS, Edge Function `create-user`, aprovado)
+- [x] Módulo 01 — Fundação e arquitetura (schema aprovado; scaffold do frontend criado neste repositório)
+- [ ] Módulo 02 — Autenticação, usuários e permissões (schema aprovado; frontend a reconstruir)
 - [ ] Módulo 03 — Configurações do hotel (não iniciado)
 - [ ] Dashboard (trazido para logo após o Módulo 04)
 
-> O schema do banco (Módulos 01 e 02) já está aplicado no Supabase. O código do frontend destes módulos está sendo reconstruído neste repositório a partir do zero, usando o schema existente como referência.
+> O schema do banco (Módulos 01 e 02) já está aplicado no Supabase. O código do frontend está sendo reconstruído neste repositório a partir do zero, usando o schema existente como referência.
