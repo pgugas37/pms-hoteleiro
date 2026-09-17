@@ -11,3 +11,7 @@ export function formatCep(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 8)
   return digits.replace(/^(\d{5})(\d)/, '$1-$2')
 }
+
+export function formatCurrency(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}

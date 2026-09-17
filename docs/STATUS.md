@@ -28,7 +28,8 @@ Stack de frontend aprovada: React 18 + TypeScript + Vite + Tailwind CSS + shadcn
   6. `0006_module02_performance_fixes`
   7. `0007_module02_fix_stale_function_reference`
   8. `0008_module02_audit_log_profile_changes`
-- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log` (todas com RLS habilitado).
+  9. `0009_module05_rooms`
+- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms` (todas com RLS habilitado).
 
 ## Módulo 01 — Fundação e arquitetura ✅
 
@@ -71,6 +72,17 @@ Concluído e validado. Substitui a página inicial (`/`) — antes só confirmav
 
 Testado rodando local: painel exibindo os dados reais do hotel (MILLENIUM HOTEL), contagem de usuários e a atividade recente (criação do admin).
 
+## Módulo 05 — Quartos
+
+Especificado e implementado. Duas tabelas novas no Supabase (migration `0009_module05_rooms`), com RLS igual ao padrão do Módulo 03 (todo autenticado lê, só admin cria/edita/exclui):
+
+- `room_types` — tipos de quarto (nome, descrição, capacidade de adultos/crianças, preço base da diária).
+- `rooms` — unidades físicas (número único, vínculo com o tipo, andar, status operacional: disponível/manutenção/inativo, observações). `room_type_id` referencia `room_types` com `on delete restrict`, então não é possível excluir um tipo com quartos vinculados (a tela trata esse erro com uma mensagem amigável).
+
+**Frontend:** página `/quartos` (link "Quartos" no menu), com duas seções — "Tipos de quarto" e "Quartos" — cada uma com tabela de listagem e cadastro/edição via modal. Só admin vê os botões de ações; os demais papéis só visualizam.
+
+Falta validar rodando localmente.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -100,4 +112,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 4. ~~Criar o primeiro Administrador via `/configuracao-inicial`.~~ **Concluído (pgugas37@gmail.com).**
 5. ~~Especificar e implementar o Módulo 03 (Configurações do hotel).~~ **Concluído e validado.**
 6. ~~Especificar e implementar o Módulo 04 (Dashboard).~~ **Concluído e validado.**
-7. Definir o Módulo 05 com o Gustavo.
+7. ~~Especificar e implementar o Módulo 05 (Quartos).~~ **Implementado — falta validar rodando localmente (`pnpm dev`, acessar `/quartos`).**
+8. Módulo 06 — Hóspedes (próximo, combinado com o Gustavo).
+9. Módulo 07 — Reservas.

@@ -10,6 +10,7 @@ import { HotelSettingsPage } from '@/pages/HotelSettingsPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { RedefinirSenhaPage } from '@/pages/RedefinirSenhaPage'
+import { RoomsPage } from '@/pages/RoomsPage'
 import { TrocarSenhaPage } from '@/pages/TrocarSenhaPage'
 import { UsersListPage } from '@/pages/UsersListPage'
 
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
           { path: '/', element: <DashboardPage /> },
           { path: '/minha-conta', element: <TrocarSenhaPage /> },
           { path: '/hotel', element: <HotelSettingsPage /> },
+          { path: '/quartos', element: <RoomsPage /> },
           {
             element: <RequireRole roles={['admin']} />,
             children: [{ path: '/usuarios', element: <UsersListPage /> }],

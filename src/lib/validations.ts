@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { BRAZIL_STATES } from '@/types/hotel'
 import { ROLES } from '@/types/auth'
+import { ROOM_STATUSES } from '@/types/room'
 
 export const loginSchema = z.object({
   email: z.string().min(1, 'Informe o e-mail.').email('E-mail inválido.'),
@@ -47,3 +48,21 @@ export const hotelSchema = z.object({
   zip: z.string().refine((value) => value.replace(/\D/g, '').length === 8, 'CEP precisa ter 8 dígitos.'),
 })
 export type HotelInput = z.infer<typeof hotelSchema>
+
+export const roomTypeSchema = z.object({
+  name: z.string().min(1, 'Informe o nome do tipo de quarto.'),
+  description: z.string().optional(),
+  capacity_adults: z.coerce.number().int().min(1, 'Mínimo de 1 adulto.'),
+  capacity_children: z.coerce.number().int().min(0, 'Não pode ser negativo.'),
+  base_price: z.coerce.number().min(0, 'O preço não pode ser negativo.'),
+})
+export type RoomTypeInput = z.infer<typeof roomTypeSchema>
+
+export const roomSchema = z.object({
+  room_type_id: z.string().min(1, 'Selecione o tipo de quarto.'),
+  number: z.string().min(1, 'Informe o número do quarto.'),
+  floor: z.string().optional(),
+  status: z.enum(ROOM_STATUSES, { errorMap: () => ({ message: 'Selecione o status.' }) }),
+  notes: z.string().optional(),
+})
+export type RoomInput = z.infer<typeof roomSchema>
