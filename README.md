@@ -35,8 +35,8 @@ Veja [`docs/STATUS.md`](./docs/STATUS.md) para o histórico de decisões, módul
 
 ## Módulos
 
-- [x] Módulo 01 — Fundação e arquitetura (schema aprovado; scaffold do frontend criado neste repositório)
-- [ ] Módulo 02 — Autenticação, usuários e permissões (schema aprovado; frontend a reconstruir)
+- [x] Módulo 01 — Fundação e arquitetura (concluído e validado)
+- [x] Módulo 02 — Autenticação, usuários e permissões (login, RBAC, CRUD de usuários — falta validar rodando local)
 - [ ] Módulo 03 — Configurações do hotel (não iniciado)
 - [ ] Dashboard (trazido para logo após o Módulo 04)
 

@@ -30,13 +30,13 @@ Stack de frontend aprovada: React 18 + TypeScript + Vite + Tailwind CSS + shadcn
   8. `0008_module02_audit_log_profile_changes`
 - Tabelas: `public.profiles`, `public.hotels`, `public.audit_log` (todas com RLS habilitado).
 
-## Módulo 01 — Fundação e arquitetura
+## Módulo 01 — Fundação e arquitetura ✅
 
-Schema aprovado. Frontend: scaffold criado neste repositório — Vite + React 18 + TypeScript + Tailwind CSS + shadcn/ui (componente `Button` já incluído) + React Router + TanStack Query, cliente Supabase configurado (`src/lib/supabase.ts`) e uma página inicial que verifica a conexão com o Supabase. Falta rodar `pnpm install && pnpm dev` no computador do Gustavo para validar.
+Concluído e validado. Frontend: scaffold criado neste repositório — Vite + React 18 + TypeScript + Tailwind CSS + shadcn/ui (componente `Button` já incluído) + React Router + TanStack Query, cliente Supabase configurado (`src/lib/supabase.ts`) e uma página inicial que verifica a conexão com o Supabase. Testado com `pnpm install && pnpm dev` no computador do Gustavo — `http://localhost:5173` confirmou "Conectado ao Supabase com sucesso".
 
 ## Módulo 02 — Autenticação, usuários e permissões
 
-Aprovado com ressalvas (0 crítico/alto pendente após auditoria). Escopo:
+Backend aprovado com ressalvas (0 crítico/alto pendente após auditoria) — schema, RLS e a Edge Function `create-user` seguem ativos no Supabase, sem alteração. Escopo:
 
 - RBAC via tabela `profiles` + RLS (funções/triggers auxiliares no schema `private`).
 - Edge Function `create-user` (bootstrap-aware: o primeiro usuário vira admin sem precisar de autenticação; usuários seguintes exigem um admin autenticado).
@@ -44,7 +44,17 @@ Aprovado com ressalvas (0 crítico/alto pendente após auditoria). Escopo:
 - CRUD de usuários (admin) + guarda de rota por papel, com página explícita de "acesso negado".
 - Auditoria encontrou e corrigiu: referência obsoleta a `public.is_admin()` (quebraria edição de usuário) e falta de gravação no `audit_log` em criação/edição de usuário (corrigido via trigger + insert na edge function).
 
-**Pendência:** criar o primeiro Administrador. Isso não pode ser feito de dentro do sandbox de nuvem do Claude (ver "Limitações conhecidas" abaixo) — precisa ser feito rodando o app localmente (`pnpm dev`), acessando a rota pública `/configuracao-inicial`, com nome + e-mail (pgugas37@gmail.com), e depois confirmando o convite que chega nesse e-mail para definir a senha.
+**Frontend reconstruído neste repositório:**
+
+- `AuthProvider`/`useAuth()` (`src/lib/auth-context.tsx`) — sessão do Supabase + perfil (`role`, `active`).
+- `/login` — entrar com e-mail e senha.
+- `/configuracao-inicial` (rota pública) — cria o primeiro Administrador via bootstrap da Edge Function `create-user`.
+- `/redefinir-senha` (rota pública) — define a senha a partir do link de convite/recuperação.
+- `/minha-conta` — trocar a própria senha, autenticado.
+- `/usuarios` (só admin) — listar usuários, criar novo (via Edge Function), editar papel/status ativo (update direto, protegido por RLS). Sem exclusão, só desativação.
+- Guardas de rota: `ProtectedRoute` (exige login) e `RequireRole` (exige papel específico), com redirecionamento para `/acesso-negado`.
+
+**Pendência:** criar o primeiro Administrador de verdade. Acesse `/configuracao-inicial` rodando o app localmente (`pnpm dev`), informe nome + e-mail (pgugas37@gmail.com), e depois confirme o convite que chega nesse e-mail para definir a senha.
 
 ## Módulo 03 — Configurações do hotel
 
@@ -74,7 +84,7 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 ## Próximos passos
 
 1. ~~Configurar git e Supabase.~~ **Concluído.**
-2. Rodar `pnpm install && pnpm dev` no computador do Gustavo para validar o scaffold do Módulo 01.
-3. Reconstruir o frontend do Módulo 02 (login, RBAC, CRUD de usuários) sobre esse scaffold.
-4. Rodar `pnpm dev` e criar o primeiro Administrador via `/configuracao-inicial`.
+2. ~~Scaffold do Módulo 01 (React + Vite + Tailwind + shadcn/ui) e validação local.~~ **Concluído.**
+3. ~~Reconstruir o frontend do Módulo 02 (login, RBAC, CRUD de usuários).~~ **Concluído — falta validar rodando localmente.**
+4. Rodar `pnpm install && pnpm dev`, acessar `/configuracao-inicial` e criar o primeiro Administrador (pgugas37@gmail.com).
 5. Apresentar a especificação de pré-desenvolvimento do Módulo 03 para autorização.

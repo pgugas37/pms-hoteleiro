@@ -1,31 +1,21 @@
-import { useQuery } from '@tanstack/react-query'
-
-import { Button } from '@/components/ui/button'
-import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth-context'
+import { ROLE_LABELS } from '@/types/auth'
 
 export function HomePage() {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['supabase-health'],
-    queryFn: async () => {
-      const { error } = await supabase.auth.getSession()
-      if (error) throw error
-      return true
-    },
-  })
+  const { profile } = useAuth()
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
+    <div className="flex min-h-[calc(100vh-57px)] flex-col items-center justify-center gap-2 p-6 text-center">
       <h1 className="text-3xl font-bold tracking-tight">PMS Hoteleiro</h1>
       <p className="max-w-md text-muted-foreground">
-        Módulo 01 — Fundação e arquitetura. React + Vite + TypeScript + Tailwind CSS +
-        shadcn/ui, conectado ao Supabase.
+        {profile
+          ? `Bem-vindo(a), ${profile.full_name} (${ROLE_LABELS[profile.role]}).`
+          : 'Carregando seu perfil...'}
       </p>
-      <div className="rounded-lg border bg-card px-4 py-3 text-sm">
-        {isLoading && 'Verificando conexão com o Supabase...'}
-        {isError && 'Não foi possível conectar ao Supabase. Confira o .env.local.'}
-        {data && 'Conectado ao Supabase com sucesso.'}
-      </div>
-      <Button>Botão de exemplo (shadcn/ui)</Button>
+      <p className="max-w-md text-sm text-muted-foreground">
+        Módulo 02 — Autenticação, usuários e permissões. O Dashboard de verdade chega no Módulo
+        04.
+      </p>
     </div>
   )
 }
