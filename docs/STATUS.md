@@ -56,9 +56,9 @@ Backend aprovado com ressalvas (0 crítico/alto pendente após auditoria) — sc
 
 **Pendência:** criar o primeiro Administrador de verdade. Acesse `/configuracao-inicial` rodando o app localmente (`pnpm dev`), informe nome + e-mail (pgugas37@gmail.com), e depois confirme o convite que chega nesse e-mail para definir a senha.
 
-## Módulo 03 — Configurações do hotel
+## Módulo 03 — Configurações do hotel ✅
 
-Especificado e implementado. Página `/hotel` (link "Configurações" no menu): formulário de nome, CNPJ, fuso horário e endereço, usando a tabela `hotels` já existente. Qualquer usuário autenticado visualiza; só admin edita/cadastra (protegido por RLS, sem Edge Function). Falta validar rodando localmente.
+Concluído e validado. Página `/hotel` (link "Configurações" no menu): formulário de nome, CNPJ, fuso horário e endereço, usando a tabela `hotels` já existente. Qualquer usuário autenticado visualiza; só admin edita/cadastra (protegido por RLS, sem Edge Function). Testado rodando local: dados reais do hotel (MILLENIUM HOTEL) cadastrados e salvos com sucesso.
 
 ## Código do frontend
 
@@ -87,5 +87,5 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 2. ~~Scaffold do Módulo 01 (React + Vite + Tailwind + shadcn/ui) e validação local.~~ **Concluído.**
 3. ~~Reconstruir o frontend do Módulo 02 (login, RBAC, CRUD de usuários).~~ **Concluído e validado.**
 4. ~~Criar o primeiro Administrador via `/configuracao-inicial`.~~ **Concluído (pgugas37@gmail.com).**
-5. ~~Especificar e implementar o Módulo 03 (Configurações do hotel).~~ **Implementado — falta validar rodando localmente (`pnpm install && pnpm dev`, acessar `/hotel`).**
+5. ~~Especificar e implementar o Módulo 03 (Configurações do hotel).~~ **Concluído e validado.**
 6. Especificar o Módulo 04 (a definir com o Gustavo — provável: Dashboard, antecipado pela decisão (C) da Fase 0).
