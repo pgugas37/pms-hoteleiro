@@ -1,0 +1,72 @@
+# Status do projeto — PMS Hoteleiro (HotelFlow)
+
+_Última atualização: 17/09/2026_
+
+## Contexto
+
+O planejamento (Fase 0) foi reiniciado do zero depois que o progresso anterior (Módulos 01–03) se perdeu com uma queda de sessão/ambiente. As decisões de arquitetura da Fase 0 foram reaprovadas e o desenvolvimento seguiu a partir daí com Git real e código versionado (em vez de artefatos HTML autocontidos por módulo).
+
+## Decisões de arquitetura (Fase 0 — aprovadas)
+
+- **(A)** Supabase como backend (Postgres + Auth + RLS + Edge Functions), em vez de Node/Express customizado ou Firebase.
+- **(B)** Repositório Git real desde o Módulo 01, sem depender de artefatos de sessão.
+- **(C)** Módulo de Dashboard antecipado para logo após o Módulo 04 (em vez de ficar no Módulo 14).
+- **(D)** Código real versionado por módulo, rodando contra o Supabase de verdade (em vez de demos HTML autocontidas).
+
+Stack de frontend aprovada: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui + React Router + TanStack Query + Zod + React Hook Form, pnpm, hospedado no Netlify.
+
+## Backend (Supabase) — já configurado e ativo
+
+- Projeto `pms-hoteleiro`, org "GUSTAVO PEREIRA NETWORK", plano free, região `sa-east-1`.
+- Ref do projeto: `gbtxgprucctjpwqswdng`.
+- Migrations já aplicadas (Módulo 01 e 02):
+  1. `0001_foundation`
+  2. `0002_module01_audit_fixes`
+  3. `0003_module02_profiles_rbac`
+  4. `0004_module02_audit_fixes`
+  5. `0005_module02_last_admin_guard`
+  6. `0006_module02_performance_fixes`
+  7. `0007_module02_fix_stale_function_reference`
+  8. `0008_module02_audit_log_profile_changes`
+- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log` (todas com RLS habilitado).
+
+## Módulo 01 — Fundação e arquitetura
+
+Aprovado. Schema base criado.
+
+## Módulo 02 — Autenticação, usuários e permissões
+
+Aprovado com ressalvas (0 crítico/alto pendente após auditoria). Escopo:
+
+- RBAC via tabela `profiles` + RLS (funções/triggers auxiliares no schema `private`).
+- Edge Function `create-user` (bootstrap-aware: o primeiro usuário vira admin sem precisar de autenticação; usuários seguintes exigem um admin autenticado).
+- Login / logout / redefinição de senha / troca de senha.
+- CRUD de usuários (admin) + guarda de rota por papel, com página explícita de "acesso negado".
+- Auditoria encontrou e corrigiu: referência obsoleta a `public.is_admin()` (quebraria edição de usuário) e falta de gravação no `audit_log` em criação/edição de usuário (corrigido via trigger + insert na edge function).
+
+**Pendência:** criar o primeiro Administrador. Isso não pode ser feito de dentro do sandbox de nuvem do Claude (ver "Limitações conhecidas" abaixo) — precisa ser feito rodando o app localmente (`pnpm dev`), acessando a rota pública `/configuracao-inicial`, com nome + e-mail (pgugas37@gmail.com), e depois confirmando o convite que chega nesse e-mail para definir a senha.
+
+## Módulo 03 — Configurações do hotel
+
+Não iniciado. A especificação de pré-desenvolvimento ainda não foi apresentada/autorizada.
+
+## Código do frontend
+
+O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
+
+## Limitações conhecidas (sandbox de nuvem do Claude)
+
+- O sandbox de nuvem usado pelo Claude bloqueia `git push` para repositórios não pré-autorizados (proxy de segurança), e também bloqueia conexões de rede diretas para o host do projeto Supabase (`*.supabase.co`). Por isso, git e Supabase precisam ser operados a partir do computador do Gustavo (ou de CI), não de dentro do sandbox.
+- Nesta retomada, o Claude passou a ter acesso de arquivos ao computador do Gustavo (via ponte do app desktop), mas **sem shell remoto** — ou seja, o Claude escreve/atualiza arquivos diretamente na pasta do projeto, mas comandos como `git init`, `git push` e a CLI do Supabase precisam ser rodados pelo próprio Gustavo no terminal dele.
+
+## Repositório Git
+
+- Repositório anterior (`pgugas37/hotel`) não está mais acessível publicamente — provavelmente privado, possivelmente renomeado ou apagado.
+- Decisão: criar um novo repositório no GitHub para retomar o versionamento real a partir daqui.
+
+## Próximos passos
+
+1. Confirmar/criar o repositório GitHub e subir este commit inicial (git + Supabase configurados).
+2. Reconstruir o código do frontend do Módulo 01 e 02 a partir do schema existente.
+3. Rodar `pnpm dev` localmente e criar o primeiro Administrador via `/configuracao-inicial`.
+4. Apresentar a especificação de pré-desenvolvimento do Módulo 03 para autorização.
