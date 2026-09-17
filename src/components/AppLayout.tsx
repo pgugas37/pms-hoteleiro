@@ -15,6 +15,9 @@ export function AppLayout() {
           PMS Hoteleiro
         </Link>
         <nav className="flex items-center gap-4 text-sm">
+          <Link to="/hotel" className="text-muted-foreground hover:text-foreground">
+            Configurações
+          </Link>
           {profile?.role === 'admin' && (
             <Link to="/usuarios" className="text-muted-foreground hover:text-foreground">
               Usuários

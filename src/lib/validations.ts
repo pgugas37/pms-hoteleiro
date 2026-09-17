@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { BRAZIL_STATES } from '@/types/hotel'
 import { ROLES } from '@/types/auth'
 
 export const loginSchema = z.object({
@@ -31,3 +32,18 @@ export const newPasswordSchema = z
     path: ['confirmPassword'],
   })
 export type NewPasswordInput = z.infer<typeof newPasswordSchema>
+
+export const hotelSchema = z.object({
+  name: z.string().min(2, 'Informe o nome do hotel.'),
+  cnpj: z
+    .string()
+    .refine((value) => value.replace(/\D/g, '').length === 14, 'CNPJ precisa ter 14 dígitos.'),
+  timezone: z.string().min(1, 'Selecione o fuso horário.'),
+  street: z.string().min(1, 'Informe a rua.'),
+  number: z.string().min(1, 'Informe o número.'),
+  neighborhood: z.string().min(1, 'Informe o bairro.'),
+  city: z.string().min(1, 'Informe a cidade.'),
+  state: z.enum(BRAZIL_STATES, { errorMap: () => ({ message: 'Selecione o estado.' }) }),
+  zip: z.string().refine((value) => value.replace(/\D/g, '').length === 8, 'CEP precisa ter 8 dígitos.'),
+})
+export type HotelInput = z.infer<typeof hotelSchema>

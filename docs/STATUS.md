@@ -58,7 +58,7 @@ Backend aprovado com ressalvas (0 crítico/alto pendente após auditoria) — sc
 
 ## Módulo 03 — Configurações do hotel
 
-Não iniciado. A especificação de pré-desenvolvimento ainda não foi apresentada/autorizada.
+Especificado e implementado. Página `/hotel` (link "Configurações" no menu): formulário de nome, CNPJ, fuso horário e endereço, usando a tabela `hotels` já existente. Qualquer usuário autenticado visualiza; só admin edita/cadastra (protegido por RLS, sem Edge Function). Falta validar rodando localmente.
 
 ## Código do frontend
 
@@ -85,6 +85,7 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 
 1. ~~Configurar git e Supabase.~~ **Concluído.**
 2. ~~Scaffold do Módulo 01 (React + Vite + Tailwind + shadcn/ui) e validação local.~~ **Concluído.**
-3. ~~Reconstruir o frontend do Módulo 02 (login, RBAC, CRUD de usuários).~~ **Concluído — falta validar rodando localmente.**
-4. Rodar `pnpm install && pnpm dev`, acessar `/configuracao-inicial` e criar o primeiro Administrador (pgugas37@gmail.com).
-5. Apresentar a especificação de pré-desenvolvimento do Módulo 03 para autorização.
+3. ~~Reconstruir o frontend do Módulo 02 (login, RBAC, CRUD de usuários).~~ **Concluído e validado.**
+4. ~~Criar o primeiro Administrador via `/configuracao-inicial`.~~ **Concluído (pgugas37@gmail.com).**
+5. ~~Especificar e implementar o Módulo 03 (Configurações do hotel).~~ **Implementado — falta validar rodando localmente (`pnpm install && pnpm dev`, acessar `/hotel`).**
+6. Especificar o Módulo 04 (a definir com o Gustavo — provável: Dashboard, antecipado pela decisão (C) da Fase 0).
