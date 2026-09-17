@@ -60,16 +60,16 @@ Backend aprovado com ressalvas (0 crítico/alto pendente após auditoria) — sc
 
 Concluído e validado. Página `/hotel` (link "Configurações" no menu): formulário de nome, CNPJ, fuso horário e endereço, usando a tabela `hotels` já existente. Qualquer usuário autenticado visualiza; só admin edita/cadastra (protegido por RLS, sem Edge Function). Testado rodando local: dados reais do hotel (MILLENIUM HOTEL) cadastrados e salvos com sucesso.
 
-## Módulo 04 — Dashboard
+## Módulo 04 — Dashboard ✅
 
-Especificado e implementado. Substitui a página inicial (`/`) — antes só confirmava a conexão com o Supabase. Sem tabelas novas nem migrations: usa só `hotels`, `profiles` e `audit_log`, que já existiam.
+Concluído e validado. Substitui a página inicial (`/`) — antes só confirmava a conexão com o Supabase. Sem tabelas novas nem migrations: usa só `hotels`, `profiles` e `audit_log`, que já existiam.
 
 - Todos os usuários: card de boas-vindas (nome, papel) e resumo do hotel (nome, cidade/UF), com link para "Configurações".
 - Só admin (única role com permissão de leitura nessas tabelas via RLS): contagem de usuários por papel e por status (ativo/inativo), com link para "Usuários"; feed das últimas atividades em `audit_log` (quem fez o quê, quando), com nome do autor resolvido via `profiles`.
 - Aviso fixo informando que indicadores operacionais (ocupação, reservas, receita) chegam com os módulos de Quartos e Reservas.
 - Observação: hoje o `audit_log` só registra criação/edição de usuário (não há trigger de auditoria em `hotels`), então o feed de atividade começa com poucos registros — isso é esperado, não é bug.
 
-Falta validar rodando localmente.
+Testado rodando local: painel exibindo os dados reais do hotel (MILLENIUM HOTEL), contagem de usuários e a atividade recente (criação do admin).
 
 ## Código do frontend
 
@@ -99,5 +99,5 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 3. ~~Reconstruir o frontend do Módulo 02 (login, RBAC, CRUD de usuários).~~ **Concluído e validado.**
 4. ~~Criar o primeiro Administrador via `/configuracao-inicial`.~~ **Concluído (pgugas37@gmail.com).**
 5. ~~Especificar e implementar o Módulo 03 (Configurações do hotel).~~ **Concluído e validado.**
-6. ~~Especificar e implementar o Módulo 04 (Dashboard).~~ **Implementado — falta validar rodando localmente (`pnpm dev`, acessar `/`).**
+6. ~~Especificar e implementar o Módulo 04 (Dashboard).~~ **Concluído e validado.**
 7. Definir o Módulo 05 com o Gustavo.
