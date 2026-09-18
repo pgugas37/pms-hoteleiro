@@ -13,6 +13,7 @@ import { HotelSettingsPage } from '@/pages/HotelSettingsPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { MaintenancePage } from '@/pages/MaintenancePage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { OccupancyMapPage } from '@/pages/OccupancyMapPage'
 import { RedefinirSenhaPage } from '@/pages/RedefinirSenhaPage'
 import { ReservationsPage } from '@/pages/ReservationsPage'
 import { RoomsPage } from '@/pages/RoomsPage'
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
           { path: '/quartos', element: <RoomsPage /> },
           { path: '/hospedes', element: <GuestsPage /> },
           { path: '/reservas', element: <ReservationsPage /> },
+          { path: '/mapa', element: <OccupancyMapPage /> },
           {
             element: <RequireRole roles={['admin', 'gerente', 'governanca']} />,
             children: [{ path: '/governanca', element: <GovernancaPage /> }],
