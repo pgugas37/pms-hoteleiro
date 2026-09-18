@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 15)_
+_Última atualização: 18/09/2026 (Módulo 16)_
 
 ## Contexto
 
@@ -218,6 +218,17 @@ Concluído e validado. Puramente frontend (query sobre `reservations` filtrada p
 
 Testado rodando local: reserva confirmada com check-in de hoje aparecendo em "Chegadas de hoje", reserva em andamento com check-out de hoje aparecendo em "Saídas de hoje", e reserva confirmada com check-in no passado aparecendo em "Atrasadas".
 
+## Módulo 16 — Recibo de pagamento em PDF ✅
+
+Concluído e validado. Puramente frontend (gera o PDF no navegador, via `jspdf`) — sem migration no banco.
+
+- Dependência nova: `jspdf` (^4.2.1).
+- Utilitário novo `src/lib/receipt.ts` (`generatePaymentReceiptPdf`): monta um recibo em PDF formato A5 com dados do hotel (nome, CNPJ, endereço), número do recibo, data, hóspede, quarto, período da estadia, valor recebido, forma de pagamento e observações (se houver).
+- Botão "Recibo (PDF)" na aba **Histórico de pagamentos** do Financeiro, em cada linha — disponível pra qualquer papel que acessa a tela (admin, gerente, recepção, financeiro), não só admin.
+- Ao instalar a dependência, o pnpm do Gustavo mostrou o aviso `ERR_PNPM_IGNORED_BUILDS` (script de instalação do `core-js`, dependência interna do `jspdf`, bloqueado pela mesma política de segurança do `minimumReleaseAge` já registrada no Módulo 08) — inofensivo, não impede o funcionamento; a instalação e o `pnpm dev` seguiram normalmente.
+
+Testado rodando local: gerar o recibo de um pagamento e conferir os dados no PDF baixado.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -258,5 +269,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 15. ~~Especificar e implementar o Módulo 13 (Exportação de relatórios em CSV).~~ **Concluído e validado.**
 16. ~~Especificar e implementar o Módulo 14 (Histórico de estadias por hóspede).~~ **Concluído e validado.**
 17. ~~Especificar e implementar o Módulo 15 (Painel do dia).~~ **Concluído e validado.**
+18. ~~Especificar e implementar o Módulo 16 (Recibo de pagamento em PDF).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, e o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), cobrindo o candidato de "notificações/lembretes" cogitado antes. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09). Candidatos possíveis daqui pra frente: exportação em PDF (recibo de pagamento, fatura), ou observações internas por quarto/hóspede.
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), e o Módulo 16 deu ao Financeiro um comprovante formal em PDF pra entregar ao hóspede. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09). Candidato possível daqui pra frente: observações internas por quarto/hóspede (notas que ficam registradas, visíveis pra equipe, sem aparecer pro hóspede).
