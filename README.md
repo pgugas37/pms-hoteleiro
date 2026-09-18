@@ -41,6 +41,7 @@ Veja [`docs/STATUS.md`](./docs/STATUS.md) para o histórico de decisões, módul
 - [x] Módulo 04 — Dashboard (concluído e validado)
 - [x] Módulo 05 — Quartos (concluído e validado)
 - [x] Módulo 06 — Hóspedes (concluído e validado)
-- [x] Módulo 07 — Reservas (implementado — falta validar rodando local)
+- [x] Módulo 07 — Reservas (concluído e validado)
+- [x] Módulo 08 — Check-in/Check-out (concluído e validado)
 
 > O schema do banco (Módulos 01 e 02) já está aplicado no Supabase. O código do frontend está sendo reconstruído neste repositório a partir do zero, usando o schema existente como referência.

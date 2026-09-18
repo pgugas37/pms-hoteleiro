@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 17/09/2026_
+_Última atualização: 18/09/2026 (Módulo 08)_
 
 ## Contexto
 
@@ -31,8 +31,16 @@ Stack de frontend aprovada: React 18 + TypeScript + Vite + Tailwind CSS + shadcn
   9. `0009_module05_rooms`
   10. `0010_module06_guests`
   11. `0011_module07_reservations`
+  12. `0012_module06_guests_soft_delete`
+  13. `module07_reservations_delete_cancelled`
+  14. `module08_checkin_checkout`
+  15. `module08_checkin_checkout_fix_grants`
+  16. `module08_cancel_reservation_room_sync`
+  17. `module08_delete_finished_and_invoice_reminder`
 - Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms`, `public.guests`, `public.reservations` (todas com RLS habilitado).
-- Função auxiliar `private.has_role(roles text[])` — generalização de `private.is_admin()`, usada nas policies de `guests` pra permitir admin, gerente e recepção.
+- Função auxiliar `private.has_role(roles text[])` — generalização de `private.is_admin()`, usada nas policies de `guests` e `reservations` pra permitir admin, gerente e recepção.
+- Funções RPC (`security definer`, checagem de papel manual por dentro): `checkin_reservation`, `checkout_reservation`, `cancel_reservation` — fazem reserva e quarto mudarem de status juntos, na mesma transação.
+- Nota: a partir da migration 13 os nomes pararam de seguir o padrão `00NN_moduloXX_...` (ficou só `moduloXX_...`, sem número) — cosmético, não afeta o funcionamento; a ordem real é pela data/hora de aplicação, não pelo nome.
 
 ## Módulo 01 — Fundação e arquitetura ✅
 
@@ -68,9 +76,9 @@ Concluído e validado. Página `/hotel` (link "Configurações" no menu): formul
 
 Concluído e validado. Substitui a página inicial (`/`) — antes só confirmava a conexão com o Supabase. Sem tabelas novas nem migrations: usa só `hotels`, `profiles` e `audit_log`, que já existiam.
 
-- Todos os usuários: card de boas-vindas (nome, papel) e resumo do hotel (nome, cidade/UF), com link para "Configurações".
+- Todos os usuários: card de boas-vindas (nome, papel) e resumo do hotel (nome, cidade/UF), com link para "Configurações". Desde o Módulo 08, também um card de **ocupação atual** (quartos ocupados / total, %), calculado a partir de `rooms.status`, com link para "Reservas".
 - Só admin (única role com permissão de leitura nessas tabelas via RLS): contagem de usuários por papel e por status (ativo/inativo), com link para "Usuários"; feed das últimas atividades em `audit_log` (quem fez o quê, quando), com nome do autor resolvido via `profiles`.
-- Aviso fixo informando que indicadores operacionais (ocupação, reservas, receita) chegam com os módulos de Quartos e Reservas.
+- Aviso fixo informando que indicadores financeiros (receita, diárias) chegam com o módulo de Financeiro.
 - Observação: hoje o `audit_log` só registra criação/edição de usuário (não há trigger de auditoria em `hotels`), então o feed de atividade começa com poucos registros — isso é esperado, não é bug.
 
 Testado rodando local: painel exibindo os dados reais do hotel (MILLENIUM HOTEL), contagem de usuários e a atividade recente (criação do admin).
@@ -93,21 +101,41 @@ Concluído e validado. Nova tabela `guests` no Supabase (migration `0010_module0
 - Campos: nome completo, documento (CPF, CNPJ ou passaporte + número, único por tipo — CNPJ cobre hóspede/empresa com faturamento via CNPJ), e-mail e telefone (opcionais), data de nascimento (opcional), nacionalidade (padrão "Brasileira"), observações. Sem campo de profissão (decisão do Gustavo).
 - Máscara de CPF/CNPJ no formulário conforme o tipo de documento selecionado.
 
-**Frontend:** página `/hospedes` (link "Hóspedes" no menu), com busca por nome ou documento e cadastro/edição via modal. Delete bloqueado se houver reservas vinculadas (`on delete restrict`, tratado com mensagem amigável), preparando o terreno pro Módulo 07.
+**Frontend:** página `/hospedes` (link "Hóspedes" no menu), com busca por nome ou documento e cadastro/edição via modal.
 
 Testado rodando local: cadastro de hóspede com CPF e CNPJ, busca por nome/documento. Durante a validação foi encontrado um bug — a checagem de CPF/CNPJ só conferia a quantidade de dígitos, não o dígito verificador de verdade, então um CPF com número inválido (mas 11 dígitos) passava. Corrigido com o algoritmo oficial de validação (`src/lib/documents.ts`), aplicado tanto no formulário de hóspedes quanto no CNPJ do Módulo 03 (Configurações do hotel), que tinha a mesma falha.
 
-## Módulo 07 — Reservas
+**Ativar/Inativar em vez de excluir (migration `0012_module06_guests_soft_delete`):** como reservas nunca são apagadas de verdade (só canceladas, pra preservar histórico), a FK `reservations.guest_id` (`on delete restrict`) impedia excluir qualquer hóspede que já tivesse tido alguma reserva — mesmo cancelada. Corrigido com o mesmo padrão já usado em Usuários: coluna `active` na tabela `guests`, botão "Excluir" virou "Inativar"/"Reativar" (só admin), e a listagem ganhou uma coluna de Status (Ativo/Inativo). Hóspedes inativos não aparecem mais na seleção ao criar uma nova reserva.
 
-Especificado e implementado. Nova tabela `reservations` no Supabase (migration `0011_module07_reservations`):
+## Módulo 07 — Reservas ✅
+
+Concluído e validado. Nova tabela `reservations` no Supabase (migration `0011_module07_reservations`):
 
 - Campos: hóspede, quarto, check-in, check-out, adultos/crianças, diária (copiada do preço do tipo de quarto no momento da reserva — não muda se o preço do tipo mudar depois), status (confirmada / em andamento / finalizada / cancelada), observações.
 - **Trava anti-overbooking no banco**: constraint de exclusão (`exclude using gist`, extensão `btree_gist` — já vinha instalada no projeto) impede fisicamente duas reservas ativas com datas sobrepostas no mesmo quarto, mesmo em caso de requisições simultâneas. Testado manualmente via SQL antes de liberar: sobreposição bloqueada, datas diferentes no mesmo quarto permitidas normalmente.
-- RLS: leitura para todo autenticado; criação/edição para admin, gerente e recepção (mesmo grupo do Módulo 06); **sem policy de exclusão** — não é possível apagar reserva pelo app, só cancelar (mudança de status), preservando o histórico.
+- RLS: leitura para todo autenticado; criação/edição para admin, gerente e recepção (mesmo grupo do Módulo 06).
 
-**Frontend:** página `/reservas` (link "Reservas" no menu), com listagem (hóspede, quarto, check-in/out, status, valor total = diária × noites) e cadastro/edição via modal — a diária é pré-preenchida a partir do preço do tipo do quarto escolhido, mas pode ser ajustada. Botão "Cancelar" separado pra reservas ativas. Se o quarto já estiver reservado no período, a tela mostra um aviso amigável em vez de erro técnico.
+**Frontend:** página `/reservas` (link "Reservas" no menu), com listagem (hóspede, quarto, check-in/out, status, valor total = diária × noites) e cadastro/edição via modal — a diária é pré-preenchida a partir do preço do tipo do quarto escolhido, mas pode ser ajustada. Botão "Cancelar" separado pra reservas ativas. Se o quarto já estiver reservado no período, a tela mostra um aviso amigável em vez de erro técnico. No campo de hóspede, link "+ Novo hóspede" abre o mesmo formulário de cadastro do Módulo 06 sem sair da tela de reserva (componente `GuestDialog` extraído para ser reutilizável).
 
-Falta validar rodando localmente.
+**Excluir reserva cancelada (migration `0013_module07_reservations_delete_cancelled`):** reservas com status "cancelada" ganharam um botão "Excluir" (só admin), que apaga a reserva definitivamente. Protegido também no banco via RLS — só é possível excluir uma reserva se `status = 'cancelada'`, mesmo direto pela API.
+
+Testado rodando local: trava de overbooking (tentativa de reserva sobreposta bloqueada com aviso amigável), cadastro de hóspede direto pela tela de reserva, ativar/inativar hóspede, exclusão de reserva cancelada.
+
+## Módulo 08 — Check-in / Check-out ✅
+
+Concluído e validado. Conecta o status da reserva ao status operacional do quarto (`rooms.status`, que ganhou um novo valor: `ocupado`), que antes eram trocados de forma totalmente independente.
+
+- **Funções RPC** (`security definer`, com checagem de papel — admin/gerente/recepção — feita dentro da função): `checkin_reservation` (reserva confirmada → em andamento + quarto → ocupado; recusa check-in antes da data marcada), `checkout_reservation` (em andamento → finalizada + quarto → disponível), `cancel_reservation` (substituiu o update direto de status; se a reserva já tinha feito check-in, libera o quarto também). As três rodam reserva e quarto na mesma transação — nunca ficam dessincronizados.
+- Na tela de edição de reserva, o campo de status deixou de ser editável direto — agora só muda pelos botões da lista ("Fazer check-in", "Fazer check-out", "Cancelar", "Excluir"), pra garantir que o quarto sempre acompanhe.
+- **Excluir reserva finalizada** (migration `module08_delete_finished_and_invoice_reminder`): o botão "Excluir" (só admin) que já existia pra reservas canceladas passou a valer também pra finalizadas. Protegido no banco via RLS (só `cancelada` ou `finalizada`).
+- **Lembrete de nota fiscal**: a tela de Reservas ganhou duas abas (componente novo `src/components/ui/tabs.tsx`, dependência `@radix-ui/react-tabs`) — "Reservas" (a de sempre) e **"Notas fiscais"**, que lista as reservas finalizadas com hóspede, período e valor, e um botão pra marcar "Emitida"/"Pendente" (colunas `invoice_issued`/`invoice_issued_at`). É só um lembrete manual — não emite nem envia nada, não tem integração fiscal real. A aba mostra um contador com a quantidade pendente.
+- **Dashboard**: novo card de ocupação atual (ver Módulo 04, acima).
+
+Durante a instalação da dependência das abas, o pnpm do Gustavo bloqueou o `pnpm install` por uma política de segurança nova (`minimumReleaseAge`, rejeita pacotes publicados há pouco tempo) — resolvido com `pnpm config set minimumReleaseAge 0` (comando do próprio pnpm; `.npmrc` e variável de ambiente não pegaram, só o comando oficial funcionou). Ficou um `.npmrc` no repositório com essa configuração pra não repetir o problema em instalações futuras.
+
+Testado rodando local: check-in (quarto vira ocupado), check-out (quarto volta a disponível), cancelamento de reserva já com check-in feito (libera o quarto), exclusão de reserva finalizada, aba de notas fiscais com hóspede/período/valor corretos e contador de pendentes.
+
+**Limitação conhecida:** editar quarto/datas de uma reserva já "em andamento" (via botão "Editar") usa update direto, sem passar pelas funções RPC — não resincroniza o quarto automaticamente. Não é um fluxo comum (normalmente não se troca o quarto de quem já fez check-in), mas fica registrado.
 
 ## Código do frontend
 
@@ -140,4 +168,7 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 6. ~~Especificar e implementar o Módulo 04 (Dashboard).~~ **Concluído e validado.**
 7. ~~Especificar e implementar o Módulo 05 (Quartos).~~ **Concluído e validado.**
 8. ~~Especificar e implementar o Módulo 06 (Hóspedes).~~ **Concluído e validado.**
-9. ~~Especificar e implementar o Módulo 07 (Reservas).~~ **Implementado — falta validar rodando localmente (`pnpm dev`, acessar `/reservas`).**
+9. ~~Especificar e implementar o Módulo 07 (Reservas).~~ **Concluído e validado.**
+10. ~~Especificar e implementar o Módulo 08 (Check-in/Check-out).~~ **Concluído e validado.**
+
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, e o Módulo 08 fechou a lacuna entre reserva e status do quarto. Próximo módulo a definir — candidatos discutidos: Financeiro/Faturamento, Relatórios e ocupação.
