@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/AppLayout'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { RequireRole } from '@/components/RequireRole'
 import { AcessoNegadoPage } from '@/pages/AcessoNegadoPage'
+import { AuditPage } from '@/pages/AuditPage'
 import { ConfiguracaoInicialPage } from '@/pages/ConfiguracaoInicialPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { FinanceiroPage } from '@/pages/FinanceiroPage'
@@ -52,7 +53,10 @@ export const router = createBrowserRouter([
           },
           {
             element: <RequireRole roles={['admin']} />,
-            children: [{ path: '/usuarios', element: <UsersListPage /> }],
+            children: [
+              { path: '/usuarios', element: <UsersListPage /> },
+              { path: '/auditoria', element: <AuditPage /> },
+            ],
           },
         ],
       },

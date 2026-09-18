@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { AUDIT_ACTION_LABELS, AUDIT_ENTITY_LABELS, fetchActorNames } from '@/lib/audit'
 import { useAuth } from '@/lib/auth-context'
 import { formatCurrency } from '@/lib/format'
 import { fetchHotel } from '@/lib/hotel'
@@ -34,17 +35,6 @@ interface AuditEntry {
   entity_id: string | null
   actor_id: string | null
   created_at: string
-}
-
-const ACTION_LABELS: Record<string, string> = {
-  create: 'criou',
-  update: 'atualizou',
-  delete: 'removeu',
-}
-
-const ENTITY_LABELS: Record<string, string> = {
-  profile: 'um usuário',
-  hotel: 'os dados do hotel',
 }
 
 async function fetchUserStats(): Promise<{ role: Role; active: boolean }[]> {
@@ -90,13 +80,6 @@ async function fetchAuditLog(): Promise<AuditEntry[]> {
     .limit(10)
   if (error) throw error
   return (data ?? []) as AuditEntry[]
-}
-
-async function fetchActorNames(actorIds: string[]): Promise<Record<string, string>> {
-  if (actorIds.length === 0) return {}
-  const { data, error } = await supabase.from('profiles').select('id, full_name').in('id', actorIds)
-  if (error) throw error
-  return Object.fromEntries((data ?? []).map((p) => [p.id, p.full_name]))
 }
 
 export function DashboardPage() {
@@ -355,12 +338,15 @@ export function DashboardPage() {
                   <span className="font-medium">
                     {entry.actor_id ? actorNames?.[entry.actor_id] ?? 'Alguém' : 'Sistema'}
                   </span>{' '}
-                  {ACTION_LABELS[entry.action] ?? entry.action} {ENTITY_LABELS[entry.entity] ?? entry.entity}
+                  {AUDIT_ACTION_LABELS[entry.action] ?? entry.action} {AUDIT_ENTITY_LABELS[entry.entity] ?? entry.entity}
                   <div className="text-xs text-muted-foreground">
                     {new Date(entry.created_at).toLocaleString('pt-BR')}
                   </div>
                 </div>
               ))}
+              <Link to="/auditoria" className="mt-2 inline-block text-sm text-primary underline-offset-4 hover:underline">
+                Ver histórico completo
+              </Link>
             </CardContent>
           </Card>
         </div>

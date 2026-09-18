@@ -50,6 +50,11 @@ export function AppLayout() {
               Usuários
             </Link>
           )}
+          {profile?.role === 'admin' && (
+            <Link to="/auditoria" className="text-muted-foreground hover:text-foreground">
+              Auditoria
+            </Link>
+          )}
           <Link to="/minha-conta" className="text-muted-foreground hover:text-foreground">
             Minha conta
           </Link>
