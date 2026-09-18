@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as React from 'react'
 import { Controller, useForm } from 'react-hook-form'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { GuestDialog } from '@/components/GuestDialog'
@@ -144,8 +145,9 @@ export function ReservationsPage() {
   const isStaff = !!profile && STAFF_ROLES.includes(profile.role)
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
+  const [searchParams] = useSearchParams()
 
-  const [search, setSearch] = React.useState('')
+  const [search, setSearch] = React.useState(() => searchParams.get('q') ?? '')
   const [statusFilter, setStatusFilter] = React.useState<ReservationStatus | 'todas'>('todas')
 
   const { data: reservations, isLoading } = useQuery({
@@ -229,8 +231,9 @@ export function ReservationsPage() {
     const term = search.trim().toLowerCase()
     return (reservations ?? []).filter((reservation) => {
       const statusMatch = statusFilter === 'todas' || reservation.status === statusFilter
-      const nameMatch = !term || (reservation.guests?.full_name ?? '').toLowerCase().includes(term)
-      return statusMatch && nameMatch
+      const nameMatch = (reservation.guests?.full_name ?? '').toLowerCase().includes(term)
+      const roomMatch = (reservation.rooms?.number ?? '').toLowerCase().includes(term)
+      return statusMatch && (!term || nameMatch || roomMatch)
     })
   }, [reservations, search, statusFilter])
 
@@ -284,7 +287,7 @@ export function ReservationsPage() {
           {reservations && reservations.length > 0 && (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Input
-                placeholder="Buscar por nome do hóspede..."
+                placeholder="Buscar por hóspede ou quarto..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="sm:max-w-xs"

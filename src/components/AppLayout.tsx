@@ -1,6 +1,7 @@
 import { LogOut } from 'lucide-react'
 import { Link, Outlet } from 'react-router-dom'
 
+import { GlobalSearchDialog } from '@/components/GlobalSearchDialog'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { ROLE_LABELS } from '@/types/auth'
@@ -11,9 +12,12 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex items-center justify-between border-b px-6 py-3">
-        <Link to="/" className="font-semibold tracking-tight">
-          PMS Hoteleiro
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to="/" className="font-semibold tracking-tight">
+            PMS Hoteleiro
+          </Link>
+          <GlobalSearchDialog />
+        </div>
         <nav className="flex items-center gap-4 text-sm">
           <Link to="/quartos" className="text-muted-foreground hover:text-foreground">
             Quartos

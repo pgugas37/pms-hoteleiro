@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as React from 'react'
 import { Controller, useForm } from 'react-hook-form'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { NotesDialog } from '@/components/NotesDialog'
@@ -70,6 +71,8 @@ export function RoomsPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
+  const [searchParams] = useSearchParams()
+  const [roomSearch, setRoomSearch] = React.useState(() => searchParams.get('q') ?? '')
 
   const { data: roomTypes, isLoading: loadingTypes } = useQuery({
     queryKey: ['room-types'],
@@ -128,6 +131,18 @@ export function RoomsPage() {
     },
     onError: () => toast.error('Não foi possível excluir a tarifa sazonal.'),
   })
+
+  const filteredRooms = React.useMemo(() => {
+    if (!rooms) return []
+    const term = roomSearch.trim().toLowerCase()
+    if (!term) return rooms
+    return rooms.filter((room) => {
+      const numberMatch = room.number.toLowerCase().includes(term)
+      const typeMatch = (room.room_types?.name ?? '').toLowerCase().includes(term)
+      const floorMatch = (room.floor ?? '').toLowerCase().includes(term)
+      return numberMatch || typeMatch || floorMatch
+    })
+  }, [rooms, roomSearch])
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
@@ -202,7 +217,7 @@ export function RoomsPage() {
           </div>
           {isAdmin && <RoomDialog roomTypes={roomTypes ?? []} />}
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           {loadingRooms && <p className="text-sm text-muted-foreground">Carregando...</p>}
           {!loadingTypes && (roomTypes ?? []).length === 0 && (
             <p className="text-sm text-muted-foreground">
@@ -210,6 +225,14 @@ export function RoomsPage() {
             </p>
           )}
           {rooms && rooms.length > 0 && (
+            <Input
+              placeholder="Buscar por número, tipo ou andar..."
+              value={roomSearch}
+              onChange={(e) => setRoomSearch(e.target.value)}
+              className="sm:max-w-xs"
+            />
+          )}
+          {filteredRooms.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -222,7 +245,7 @@ export function RoomsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rooms.map((room) => (
+                {filteredRooms.map((room) => (
                   <TableRow key={room.id}>
                     <TableCell>{room.number}</TableCell>
                     <TableCell>{room.room_types?.name ?? '—'}</TableCell>
@@ -268,6 +291,9 @@ export function RoomsPage() {
           )}
           {rooms && rooms.length === 0 && (
             <p className="text-sm text-muted-foreground">Nenhum quarto cadastrado.</p>
+          )}
+          {rooms && rooms.length > 0 && filteredRooms.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhum quarto encontrado para "{roomSearch}".</p>
           )}
         </CardContent>
       </Card>

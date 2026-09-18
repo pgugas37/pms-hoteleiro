@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as React from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { GuestDialog } from '@/components/GuestDialog'
@@ -67,7 +68,8 @@ export function GuestsPage() {
   const isStaff = !!profile && STAFF_ROLES.includes(profile.role)
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
-  const [search, setSearch] = React.useState('')
+  const [searchParams] = useSearchParams()
+  const [search, setSearch] = React.useState(() => searchParams.get('q') ?? '')
 
   const { data: guests, isLoading } = useQuery({ queryKey: ['guests'], queryFn: fetchGuests })
   const { data: guestReservations } = useQuery({
