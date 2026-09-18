@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/lib/auth-context'
 import { formatCurrency } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
@@ -28,7 +29,6 @@ import { reservationSchema, type ReservationInput } from '@/lib/validations'
 import type { Role } from '@/types/auth'
 import type { Guest } from '@/types/guest'
 import {
-  RESERVATION_STATUSES,
   RESERVATION_STATUS_LABELS,
   nightsBetween,
   type ReservationStatus,
@@ -78,6 +78,15 @@ function errorCode(error: unknown): string | undefined {
   return undefined
 }
 
+/** Mensagens de erro lançadas com `raise exception` nas funções RPC (checkin/checkout/cancel) chegam em `error.message`. */
+function rpcErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: string }).message
+    if (message) return message
+  }
+  return fallback
+}
+
 function statusBadgeVariant(status: ReservationStatus) {
   if (status === 'confirmada') return 'default'
   if (status === 'em_andamento') return 'secondary'
@@ -100,14 +109,16 @@ export function ReservationsPage() {
 
   const cancelReservation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('reservations').update({ status: 'cancelada' }).eq('id', id)
+      const { error } = await supabase.rpc('cancel_reservation', { p_reservation_id: id })
       if (error) throw error
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reservations'] })
+      queryClient.invalidateQueries({ queryKey: ['rooms-select'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-room-stats'] })
       toast.success('Reserva cancelada.')
     },
-    onError: () => toast.error('Não foi possível cancelar a reserva.'),
+    onError: (error) => toast.error(rpcErrorMessage(error, 'Não foi possível cancelar a reserva.')),
   })
 
   const deleteReservation = useMutation({
@@ -122,6 +133,55 @@ export function ReservationsPage() {
     onError: () => toast.error('Não foi possível excluir a reserva.'),
   })
 
+  const checkinReservation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc('checkin_reservation', { p_reservation_id: id })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reservations'] })
+      queryClient.invalidateQueries({ queryKey: ['rooms-select'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-room-stats'] })
+      toast.success('Check-in realizado.')
+    },
+    onError: (error) => toast.error(rpcErrorMessage(error, 'Não foi possível fazer o check-in.')),
+  })
+
+  const checkoutReservation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc('checkout_reservation', { p_reservation_id: id })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reservations'] })
+      queryClient.invalidateQueries({ queryKey: ['rooms-select'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-room-stats'] })
+      toast.success('Check-out realizado.')
+    },
+    onError: (error) => toast.error(rpcErrorMessage(error, 'Não foi possível fazer o check-out.')),
+  })
+
+  const toggleInvoiceIssued = useMutation({
+    mutationFn: async ({ id, invoiceIssued }: { id: string; invoiceIssued: boolean }) => {
+      const { error } = await supabase
+        .from('reservations')
+        .update({ invoice_issued: invoiceIssued, invoice_issued_at: invoiceIssued ? new Date().toISOString() : null })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: (_data, { invoiceIssued }) => {
+      queryClient.invalidateQueries({ queryKey: ['reservations'] })
+      toast.success(invoiceIssued ? 'Nota fiscal marcada como emitida.' : 'Nota fiscal marcada como pendente.')
+    },
+    onError: () => toast.error('Não foi possível atualizar a nota fiscal.'),
+  })
+
+  const finalizedReservations = React.useMemo(() => {
+    return (reservations ?? [])
+      .filter((r) => r.status === 'finalizada')
+      .sort((a, b) => Number(a.invoice_issued) - Number(b.invoice_issued))
+  }, [reservations])
+
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <div>
@@ -129,6 +189,20 @@ export function ReservationsPage() {
         <p className="text-sm text-muted-foreground">Reservas de hóspedes em quartos.</p>
       </div>
 
+      <Tabs defaultValue="reservas">
+        <TabsList>
+          <TabsTrigger value="reservas">Reservas</TabsTrigger>
+          <TabsTrigger value="notas-fiscais">
+            Notas fiscais
+            {finalizedReservations.some((r) => !r.invoice_issued) && (
+              <Badge variant="destructive" className="ml-2">
+                {finalizedReservations.filter((r) => !r.invoice_issued).length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="reservas">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
@@ -182,6 +256,24 @@ export function ReservationsPage() {
                       {isStaff && (
                         <TableCell className="space-x-2 text-right">
                           <ReservationDialog reservation={reservation} guests={guests ?? []} rooms={rooms ?? []} />
+                          {reservation.status === 'confirmada' && (
+                            <Button
+                              size="sm"
+                              onClick={() => checkinReservation.mutate(reservation.id)}
+                              disabled={checkinReservation.isPending}
+                            >
+                              Fazer check-in
+                            </Button>
+                          )}
+                          {reservation.status === 'em_andamento' && (
+                            <Button
+                              size="sm"
+                              onClick={() => checkoutReservation.mutate(reservation.id)}
+                              disabled={checkoutReservation.isPending}
+                            >
+                              Fazer check-out
+                            </Button>
+                          )}
                           {ACTIVE_STATUSES.includes(reservation.status) && (
                             <Button
                               variant="outline"
@@ -195,14 +287,14 @@ export function ReservationsPage() {
                               Cancelar
                             </Button>
                           )}
-                          {isAdmin && reservation.status === 'cancelada' && (
+                          {isAdmin && (reservation.status === 'cancelada' || reservation.status === 'finalizada') && (
                             <Button
                               variant="destructive"
                               size="sm"
                               onClick={() => {
                                 if (
                                   window.confirm(
-                                    'Excluir definitivamente esta reserva cancelada? Essa ação não pode ser desfeita.'
+                                    'Excluir definitivamente esta reserva? Essa ação não pode ser desfeita.'
                                   )
                                 ) {
                                   deleteReservation.mutate(reservation.id)
@@ -226,6 +318,76 @@ export function ReservationsPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="notas-fiscais">
+          <Card>
+            <CardHeader>
+              <CardTitle>Lembrete de nota fiscal</CardTitle>
+              <CardDescription>
+                Reservas finalizadas, com hóspede, valor e período, pra não esquecer de emitir a nota. Controle
+                manual — não emite nem envia nada, só ajuda a lembrar.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {finalizedReservations.length === 0 && (
+                <p className="text-sm text-muted-foreground">Nenhuma reserva finalizada ainda.</p>
+              )}
+
+              {finalizedReservations.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Hóspede</TableHead>
+                      <TableHead>Período</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Nota fiscal</TableHead>
+                      {isStaff && <TableHead className="text-right">Ações</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {finalizedReservations.map((reservation) => {
+                      const nights = nightsBetween(reservation.check_in, reservation.check_out)
+                      return (
+                        <TableRow key={reservation.id}>
+                          <TableCell>{reservation.guests?.full_name ?? '—'}</TableCell>
+                          <TableCell>
+                            {new Date(`${reservation.check_in}T00:00:00`).toLocaleDateString('pt-BR')} –{' '}
+                            {new Date(`${reservation.check_out}T00:00:00`).toLocaleDateString('pt-BR')}
+                          </TableCell>
+                          <TableCell>{formatCurrency(reservation.daily_rate * nights)}</TableCell>
+                          <TableCell>
+                            <Badge variant={reservation.invoice_issued ? 'default' : 'outline'}>
+                              {reservation.invoice_issued ? 'Emitida' : 'Pendente'}
+                            </Badge>
+                          </TableCell>
+                          {isStaff && (
+                            <TableCell className="text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  toggleInvoiceIssued.mutate({
+                                    id: reservation.id,
+                                    invoiceIssued: !reservation.invoice_issued,
+                                  })
+                                }
+                                disabled={toggleInvoiceIssued.isPending}
+                              >
+                                {reservation.invoice_issued ? 'Marcar como pendente' : 'Marcar como emitida'}
+                              </Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
@@ -429,27 +591,15 @@ function ReservationDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Status</Label>
-            <Controller
-              control={control}
-              name="status"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {RESERVATION_STATUSES.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {RESERVATION_STATUS_LABELS[status]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
+          {isEdit && (
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <p className="text-sm text-muted-foreground">
+                {RESERVATION_STATUS_LABELS[reservation.status]} — use os botões "Fazer check-in", "Fazer
+                check-out", "Cancelar" ou "Excluir" na lista para mudar o status.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="notes">Observações (opcional)</Label>

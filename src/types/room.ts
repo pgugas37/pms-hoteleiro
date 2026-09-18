@@ -9,11 +9,12 @@ export interface RoomType {
   updated_at: string
 }
 
-export const ROOM_STATUSES = ['disponivel', 'manutencao', 'inativo'] as const
+export const ROOM_STATUSES = ['disponivel', 'ocupado', 'manutencao', 'inativo'] as const
 export type RoomStatus = (typeof ROOM_STATUSES)[number]
 
 export const ROOM_STATUS_LABELS: Record<RoomStatus, string> = {
   disponivel: 'Disponível',
+  ocupado: 'Ocupado',
   manutencao: 'Em manutenção',
   inativo: 'Inativo',
 }

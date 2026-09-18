@@ -197,9 +197,11 @@ export function RoomsPage() {
                         variant={
                           room.status === 'disponivel'
                             ? 'default'
-                            : room.status === 'manutencao'
-                              ? 'secondary'
-                              : 'outline'
+                            : room.status === 'ocupado'
+                              ? 'destructive'
+                              : room.status === 'manutencao'
+                                ? 'secondary'
+                                : 'outline'
                         }
                       >
                         {ROOM_STATUS_LABELS[room.status]}

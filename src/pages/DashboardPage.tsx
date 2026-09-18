@@ -34,6 +34,12 @@ async function fetchUserStats(): Promise<{ role: Role; active: boolean }[]> {
   return (data ?? []) as { role: Role; active: boolean }[]
 }
 
+async function fetchRoomStats(): Promise<{ status: string }[]> {
+  const { data, error } = await supabase.from('rooms').select('status')
+  if (error) throw error
+  return (data ?? []) as { status: string }[]
+}
+
 async function fetchAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await supabase
     .from('audit_log')
@@ -61,6 +67,11 @@ export function DashboardPage() {
     queryKey: ['dashboard-user-stats'],
     queryFn: fetchUserStats,
     enabled: isAdmin,
+  })
+
+  const { data: roomStats } = useQuery({
+    queryKey: ['dashboard-room-stats'],
+    queryFn: fetchRoomStats,
   })
 
   const { data: auditLog } = useQuery({
@@ -96,6 +107,14 @@ export function DashboardPage() {
     return { counts, activeCount, inactiveCount, total: (userStats ?? []).length }
   }, [userStats])
 
+  const occupancy = React.useMemo(() => {
+    const total = (roomStats ?? []).length
+    const occupied = (roomStats ?? []).filter((r) => r.status === 'ocupado').length
+    const available = (roomStats ?? []).filter((r) => r.status === 'disponivel').length
+    const rate = total > 0 ? Math.round((occupied / total) * 100) : 0
+    return { total, occupied, available, rate }
+  }, [roomStats])
+
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
       <div>
@@ -122,6 +141,26 @@ export function DashboardPage() {
           </Link>
         </CardContent>
       </Card>
+
+      {occupancy.total > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ocupação atual</CardTitle>
+            <CardDescription>
+              {occupancy.occupied} de {occupancy.total} quartos ocupados ({occupancy.rate}%)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Disponíveis</span>
+              <span>{occupancy.available}</span>
+            </div>
+            <Link to="/reservas" className="mt-2 inline-block text-sm text-primary underline-offset-4 hover:underline">
+              Ver reservas
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       {isAdmin && (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -176,8 +215,8 @@ export function DashboardPage() {
 
       <Card className="border-dashed">
         <CardContent className="pt-6 text-sm text-muted-foreground">
-          Indicadores operacionais (ocupação, reservas, receita) vão aparecer aqui conforme os módulos de
-          Quartos e Reservas forem implementados.
+          Indicadores financeiros (receita, diárias) vão aparecer aqui quando o módulo de Financeiro for
+          implementado.
         </CardContent>
       </Card>
     </div>

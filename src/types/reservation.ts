@@ -19,6 +19,10 @@ export interface Reservation {
   daily_rate: number
   status: ReservationStatus
   notes: string | null
+  checked_in_at: string | null
+  checked_out_at: string | null
+  invoice_issued: boolean
+  invoice_issued_at: string | null
   created_at: string
   updated_at: string
 }
