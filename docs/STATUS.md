@@ -30,7 +30,8 @@ Stack de frontend aprovada: React 18 + TypeScript + Vite + Tailwind CSS + shadcn
   8. `0008_module02_audit_log_profile_changes`
   9. `0009_module05_rooms`
   10. `0010_module06_guests`
-- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms`, `public.guests` (todas com RLS habilitado).
+  11. `0011_module07_reservations`
+- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms`, `public.guests`, `public.reservations` (todas com RLS habilitado).
 - Função auxiliar `private.has_role(roles text[])` — generalização de `private.is_admin()`, usada nas policies de `guests` pra permitir admin, gerente e recepção.
 
 ## Módulo 01 — Fundação e arquitetura ✅
@@ -96,6 +97,18 @@ Concluído e validado. Nova tabela `guests` no Supabase (migration `0010_module0
 
 Testado rodando local: cadastro de hóspede com CPF e CNPJ, busca por nome/documento. Durante a validação foi encontrado um bug — a checagem de CPF/CNPJ só conferia a quantidade de dígitos, não o dígito verificador de verdade, então um CPF com número inválido (mas 11 dígitos) passava. Corrigido com o algoritmo oficial de validação (`src/lib/documents.ts`), aplicado tanto no formulário de hóspedes quanto no CNPJ do Módulo 03 (Configurações do hotel), que tinha a mesma falha.
 
+## Módulo 07 — Reservas
+
+Especificado e implementado. Nova tabela `reservations` no Supabase (migration `0011_module07_reservations`):
+
+- Campos: hóspede, quarto, check-in, check-out, adultos/crianças, diária (copiada do preço do tipo de quarto no momento da reserva — não muda se o preço do tipo mudar depois), status (confirmada / em andamento / finalizada / cancelada), observações.
+- **Trava anti-overbooking no banco**: constraint de exclusão (`exclude using gist`, extensão `btree_gist` — já vinha instalada no projeto) impede fisicamente duas reservas ativas com datas sobrepostas no mesmo quarto, mesmo em caso de requisições simultâneas. Testado manualmente via SQL antes de liberar: sobreposição bloqueada, datas diferentes no mesmo quarto permitidas normalmente.
+- RLS: leitura para todo autenticado; criação/edição para admin, gerente e recepção (mesmo grupo do Módulo 06); **sem policy de exclusão** — não é possível apagar reserva pelo app, só cancelar (mudança de status), preservando o histórico.
+
+**Frontend:** página `/reservas` (link "Reservas" no menu), com listagem (hóspede, quarto, check-in/out, status, valor total = diária × noites) e cadastro/edição via modal — a diária é pré-preenchida a partir do preço do tipo do quarto escolhido, mas pode ser ajustada. Botão "Cancelar" separado pra reservas ativas. Se o quarto já estiver reservado no período, a tela mostra um aviso amigável em vez de erro técnico.
+
+Falta validar rodando localmente.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -127,4 +140,4 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 6. ~~Especificar e implementar o Módulo 04 (Dashboard).~~ **Concluído e validado.**
 7. ~~Especificar e implementar o Módulo 05 (Quartos).~~ **Concluído e validado.**
 8. ~~Especificar e implementar o Módulo 06 (Hóspedes).~~ **Concluído e validado.**
-9. Módulo 07 — Reservas (próximo).
+9. ~~Especificar e implementar o Módulo 07 (Reservas).~~ **Implementado — falta validar rodando localmente (`pnpm dev`, acessar `/reservas`).**
