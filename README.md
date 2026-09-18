@@ -58,5 +58,6 @@ Veja [`docs/STATUS.md`](./docs/STATUS.md) para o histórico de decisões, módul
 - [x] Módulo 21 — Ficha Nacional de Registro de Hóspede (FNRH) em PDF (concluído e validado)
 - [x] Módulo 22 — Tarifas sazonais/promocionais por tipo de quarto (concluído e validado)
 - [x] Módulo 23 — Auditoria de reservas e pagamentos (concluído e validado)
+- [x] Módulo 24 — Busca global (hóspedes, quartos e reservas) (concluído e validado)
 
 > O schema do banco (Módulos 01 e 02) já está aplicado no Supabase. O código do frontend está sendo reconstruído neste repositório a partir do zero, usando o schema existente como referência.
