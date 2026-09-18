@@ -6,9 +6,11 @@ import { RequireRole } from '@/components/RequireRole'
 import { AcessoNegadoPage } from '@/pages/AcessoNegadoPage'
 import { ConfiguracaoInicialPage } from '@/pages/ConfiguracaoInicialPage'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { GovernancaPage } from '@/pages/GovernancaPage'
 import { GuestsPage } from '@/pages/GuestsPage'
 import { HotelSettingsPage } from '@/pages/HotelSettingsPage'
 import { LoginPage } from '@/pages/LoginPage'
+import { MaintenancePage } from '@/pages/MaintenancePage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { RedefinirSenhaPage } from '@/pages/RedefinirSenhaPage'
 import { ReservationsPage } from '@/pages/ReservationsPage'
@@ -33,6 +35,14 @@ export const router = createBrowserRouter([
           { path: '/quartos', element: <RoomsPage /> },
           { path: '/hospedes', element: <GuestsPage /> },
           { path: '/reservas', element: <ReservationsPage /> },
+          {
+            element: <RequireRole roles={['admin', 'gerente', 'governanca']} />,
+            children: [{ path: '/governanca', element: <GovernancaPage /> }],
+          },
+          {
+            element: <RequireRole roles={['admin', 'gerente', 'recepcao', 'governanca', 'manutencao']} />,
+            children: [{ path: '/manutencao', element: <MaintenancePage /> }],
+          },
           {
             element: <RequireRole roles={['admin']} />,
             children: [{ path: '/usuarios', element: <UsersListPage /> }],

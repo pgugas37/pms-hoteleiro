@@ -111,8 +111,10 @@ export function DashboardPage() {
     const total = (roomStats ?? []).length
     const occupied = (roomStats ?? []).filter((r) => r.status === 'ocupado').length
     const available = (roomStats ?? []).filter((r) => r.status === 'disponivel').length
+    const cleaning = (roomStats ?? []).filter((r) => r.status === 'limpeza').length
+    const maintenance = (roomStats ?? []).filter((r) => r.status === 'manutencao').length
     const rate = total > 0 ? Math.round((occupied / total) * 100) : 0
-    return { total, occupied, available, rate }
+    return { total, occupied, available, cleaning, maintenance, rate }
   }, [roomStats])
 
   return (
@@ -155,6 +157,18 @@ export function DashboardPage() {
               <span className="text-muted-foreground">Disponíveis</span>
               <span>{occupancy.available}</span>
             </div>
+            {occupancy.cleaning > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Aguardando limpeza</span>
+                <span>{occupancy.cleaning}</span>
+              </div>
+            )}
+            {occupancy.maintenance > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Em manutenção</span>
+                <span>{occupancy.maintenance}</span>
+              </div>
+            )}
             <Link to="/reservas" className="mt-2 inline-block text-sm text-primary underline-offset-4 hover:underline">
               Ver reservas
             </Link>

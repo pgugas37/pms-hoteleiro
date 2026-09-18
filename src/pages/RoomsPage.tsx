@@ -199,7 +199,7 @@ export function RoomsPage() {
                             ? 'default'
                             : room.status === 'ocupado'
                               ? 'destructive'
-                              : room.status === 'manutencao'
+                              : room.status === 'limpeza' || room.status === 'manutencao'
                                 ? 'secondary'
                                 : 'outline'
                         }

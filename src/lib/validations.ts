@@ -108,3 +108,9 @@ export const reservationSchema = z
     path: ['check_out'],
   })
 export type ReservationInput = z.infer<typeof reservationSchema>
+
+export const maintenanceRequestSchema = z.object({
+  room_id: z.string().min(1, 'Selecione o quarto.'),
+  description: z.string().min(3, 'Descreva o problema.'),
+})
+export type MaintenanceRequestInput = z.infer<typeof maintenanceRequestSchema>

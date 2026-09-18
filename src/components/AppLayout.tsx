@@ -24,6 +24,16 @@ export function AppLayout() {
           <Link to="/reservas" className="text-muted-foreground hover:text-foreground">
             Reservas
           </Link>
+          {profile && ['admin', 'gerente', 'governanca'].includes(profile.role) && (
+            <Link to="/governanca" className="text-muted-foreground hover:text-foreground">
+              Governança
+            </Link>
+          )}
+          {profile && ['admin', 'gerente', 'recepcao', 'governanca', 'manutencao'].includes(profile.role) && (
+            <Link to="/manutencao" className="text-muted-foreground hover:text-foreground">
+              Manutenção
+            </Link>
+          )}
           <Link to="/hotel" className="text-muted-foreground hover:text-foreground">
             Configurações
           </Link>
