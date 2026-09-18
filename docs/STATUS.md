@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 13)_
+_Última atualização: 18/09/2026 (Módulo 14)_
 
 ## Contexto
 
@@ -200,6 +200,15 @@ Concluído e validado. Puramente frontend (gera o CSV no navegador, via `Blob`) 
 
 Testado rodando local: exportar CSV das duas abas e abrir no Excel, conferindo valores e acentuação.
 
+## Módulo 14 — Histórico de estadias por hóspede ✅
+
+Concluído e validado. Puramente frontend (query sobre `reservations` filtrada por `guest_id` no cliente) — sem migration no banco.
+
+- Nova coluna "Estadias" na lista de Hóspedes, com botão "Histórico (N)" mostrando a quantidade de reservas não canceladas daquele hóspede.
+- Dialog de histórico: lista todas as reservas do hóspede (inclusive canceladas, mas contadas à parte), com quarto, período, status e valor total (diária × noites) de cada uma.
+
+Testado rodando local: abrir o histórico de um hóspede com reservas em vários status e conferir se contagem, período e valores batem com a tela de Reservas.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -238,5 +247,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 13. ~~Especificar e implementar o Módulo 11 (Financeiro/Faturamento).~~ **Concluído e validado.**
 14. ~~Especificar e implementar o Módulo 12 (Filtros e período).~~ **Concluído e validado.**
 15. ~~Especificar e implementar o Módulo 13 (Exportação de relatórios em CSV).~~ **Concluído e validado.**
+16. ~~Especificar e implementar o Módulo 14 (Histórico de estadias por hóspede).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, e o Módulo 13 permitiu tirar os dados do sistema (CSV). A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09). Candidatos possíveis daqui pra frente: histórico de reservas por hóspede (na própria tela de Hóspedes), notificações/lembretes, ou exportação em PDF.
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), e o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09). Candidatos possíveis daqui pra frente: notificações/lembretes (ex.: reservas confirmadas sem check-in no dia), exportação em PDF, ou observações internas por quarto/hóspede.
