@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 08)_
+_Última atualização: 18/09/2026 (Módulo 10)_
 
 ## Contexto
 
@@ -37,9 +37,11 @@ Stack de frontend aprovada: React 18 + TypeScript + Vite + Tailwind CSS + shadcn
   15. `module08_checkin_checkout_fix_grants`
   16. `module08_cancel_reservation_room_sync`
   17. `module08_delete_finished_and_invoice_reminder`
-- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms`, `public.guests`, `public.reservations` (todas com RLS habilitado).
+  18. `module09_housekeeping`
+  19. `module10_maintenance`
+- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms`, `public.guests`, `public.reservations`, `public.maintenance_requests` (todas com RLS habilitado).
 - Função auxiliar `private.has_role(roles text[])` — generalização de `private.is_admin()`, usada nas policies de `guests` e `reservations` pra permitir admin, gerente e recepção.
-- Funções RPC (`security definer`, checagem de papel manual por dentro): `checkin_reservation`, `checkout_reservation`, `cancel_reservation` — fazem reserva e quarto mudarem de status juntos, na mesma transação.
+- Funções RPC (`security definer`, checagem de papel manual por dentro): `checkin_reservation`, `checkout_reservation`, `cancel_reservation` (reserva e quarto mudam de status juntos, na mesma transação), `mark_room_clean` (governança), `report_maintenance_issue`/`resolve_maintenance_request` (manutenção).
 - Nota: a partir da migration 13 os nomes pararam de seguir o padrão `00NN_moduloXX_...` (ficou só `moduloXX_...`, sem número) — cosmético, não afeta o funcionamento; a ordem real é pela data/hora de aplicação, não pelo nome.
 
 ## Módulo 01 — Fundação e arquitetura ✅
@@ -76,7 +78,7 @@ Concluído e validado. Página `/hotel` (link "Configurações" no menu): formul
 
 Concluído e validado. Substitui a página inicial (`/`) — antes só confirmava a conexão com o Supabase. Sem tabelas novas nem migrations: usa só `hotels`, `profiles` e `audit_log`, que já existiam.
 
-- Todos os usuários: card de boas-vindas (nome, papel) e resumo do hotel (nome, cidade/UF), com link para "Configurações". Desde o Módulo 08, também um card de **ocupação atual** (quartos ocupados / total, %), calculado a partir de `rooms.status`, com link para "Reservas".
+- Todos os usuários: card de boas-vindas (nome, papel) e resumo do hotel (nome, cidade/UF), com link para "Configurações". Desde o Módulo 08, também um card de **ocupação atual** (quartos ocupados / total, %), calculado a partir de `rooms.status`, com link para "Reservas" — que desde os Módulos 09/10 também mostra quantos quartos estão aguardando limpeza e em manutenção, quando houver algum.
 - Só admin (única role com permissão de leitura nessas tabelas via RLS): contagem de usuários por papel e por status (ativo/inativo), com link para "Usuários"; feed das últimas atividades em `audit_log` (quem fez o quê, quando), com nome do autor resolvido via `profiles`.
 - Aviso fixo informando que indicadores financeiros (receita, diárias) chegam com o módulo de Financeiro.
 - Observação: hoje o `audit_log` só registra criação/edição de usuário (não há trigger de auditoria em `hotels`), então o feed de atividade começa com poucos registros — isso é esperado, não é bug.
@@ -125,7 +127,7 @@ Testado rodando local: trava de overbooking (tentativa de reserva sobreposta blo
 
 Concluído e validado. Conecta o status da reserva ao status operacional do quarto (`rooms.status`, que ganhou um novo valor: `ocupado`), que antes eram trocados de forma totalmente independente.
 
-- **Funções RPC** (`security definer`, com checagem de papel — admin/gerente/recepção — feita dentro da função): `checkin_reservation` (reserva confirmada → em andamento + quarto → ocupado; recusa check-in antes da data marcada), `checkout_reservation` (em andamento → finalizada + quarto → disponível), `cancel_reservation` (substituiu o update direto de status; se a reserva já tinha feito check-in, libera o quarto também). As três rodam reserva e quarto na mesma transação — nunca ficam dessincronizados.
+- **Funções RPC** (`security definer`, com checagem de papel — admin/gerente/recepção — feita dentro da função): `checkin_reservation` (reserva confirmada → em andamento + quarto → ocupado; recusa check-in antes da data marcada), `checkout_reservation` (em andamento → finalizada + quarto → aguardando limpeza, desde o Módulo 09 — era "disponível" direto até então), `cancel_reservation` (substituiu o update direto de status; se a reserva já tinha feito check-in, o quarto também vai para aguardando limpeza). As três rodam reserva e quarto na mesma transação — nunca ficam dessincronizados.
 - Na tela de edição de reserva, o campo de status deixou de ser editável direto — agora só muda pelos botões da lista ("Fazer check-in", "Fazer check-out", "Cancelar", "Excluir"), pra garantir que o quarto sempre acompanhe.
 - **Excluir reserva finalizada** (migration `module08_delete_finished_and_invoice_reminder`): o botão "Excluir" (só admin) que já existia pra reservas canceladas passou a valer também pra finalizadas. Protegido no banco via RLS (só `cancelada` ou `finalizada`).
 - **Lembrete de nota fiscal**: a tela de Reservas ganhou duas abas (componente novo `src/components/ui/tabs.tsx`, dependência `@radix-ui/react-tabs`) — "Reservas" (a de sempre) e **"Notas fiscais"**, que lista as reservas finalizadas com hóspede, período e valor, e um botão pra marcar "Emitida"/"Pendente" (colunas `invoice_issued`/`invoice_issued_at`). É só um lembrete manual — não emite nem envia nada, não tem integração fiscal real. A aba mostra um contador com a quantidade pendente.
@@ -136,6 +138,29 @@ Durante a instalação da dependência das abas, o pnpm do Gustavo bloqueou o `p
 Testado rodando local: check-in (quarto vira ocupado), check-out (quarto volta a disponível), cancelamento de reserva já com check-in feito (libera o quarto), exclusão de reserva finalizada, aba de notas fiscais com hóspede/período/valor corretos e contador de pendentes.
 
 **Limitação conhecida:** editar quarto/datas de uma reserva já "em andamento" (via botão "Editar") usa update direto, sem passar pelas funções RPC — não resincroniza o quarto automaticamente. Não é um fluxo comum (normalmente não se troca o quarto de quem já fez check-in), mas fica registrado.
+
+## Módulo 09 — Governança (limpeza de quartos) ✅
+
+Concluído e validado. Dá função de verdade ao papel "governanca" (cadastrado desde o Módulo 02, mas sem nenhuma tela até aqui) e fecha um buraco do Módulo 08: antes o check-out liberava o quarto direto pra "Disponível"; agora ele fica "Aguardando limpeza" primeiro.
+
+- Novo status de quarto: `limpeza` (migration `module09_housekeeping`). `checkout_reservation` e `cancel_reservation` (de uma reserva que já tinha feito check-in) passaram a deixar o quarto em `limpeza` em vez de `disponivel` direto.
+- Função RPC `mark_room_clean` (`security definer`, admin/gerente/governança): libera o quarto de `limpeza` pra `disponivel`.
+- **Frontend:** página `/governanca` (link "Governança" no menu, visível pra admin/gerente/governança) listando os quartos aguardando limpeza, com botão "Marcar como limpo".
+- Dashboard ganhou a contagem de "Aguardando limpeza" (ver Módulo 04).
+
+Testado rodando local: check-out deixando o quarto aguardando limpeza, quarto aparecendo na tela de Governança, "Marcar como limpo" liberando o quarto de volta pra disponível.
+
+## Módulo 10 — Manutenção ✅
+
+Concluído e validado. Mesmo raciocínio do Módulo 09, agora pro papel "manutencao": sistema de chamados pra reportar e resolver problemas nos quartos.
+
+- Tabela nova `maintenance_requests` (migration `module10_maintenance`): quarto, descrição, status (aberto/resolvido), quem reportou/resolveu, datas. RLS: leitura pra todo autenticado; escrita direta só admin — os demais papéis usam as funções RPC abaixo.
+- Função RPC `report_maintenance_issue` (qualquer funcionário — admin, gerente, recepção, governança ou manutenção): cria o chamado e marca o quarto como `manutencao`, **a não ser que o quarto esteja `ocupado`** (nesse caso só registra o chamado, sem tirar o quarto de uso).
+- Função RPC `resolve_maintenance_request` (admin, gerente ou manutenção): marca o chamado como resolvido e libera o quarto de volta pra `disponivel`, se ele ainda estiver `manutencao`.
+- **Frontend:** página `/manutencao` (link "Manutenção" no menu, visível pra admin/gerente/recepção/governança/manutenção) com botão "Reportar problema" (quarto + descrição), lista de chamados abertos com "Resolver" (só admin/gerente/manutenção), e histórico dos últimos resolvidos.
+- Dashboard ganhou a contagem de "Em manutenção" (ver Módulo 04).
+
+Testado rodando local: reportar problema num quarto disponível (vira "Em manutenção"), resolver o chamado (libera o quarto), reportar problema num quarto ocupado (não muda o status do quarto, só registra o chamado).
 
 ## Código do frontend
 
@@ -170,5 +195,7 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 8. ~~Especificar e implementar o Módulo 06 (Hóspedes).~~ **Concluído e validado.**
 9. ~~Especificar e implementar o Módulo 07 (Reservas).~~ **Concluído e validado.**
 10. ~~Especificar e implementar o Módulo 08 (Check-in/Check-out).~~ **Concluído e validado.**
+11. ~~Especificar e implementar o Módulo 09 (Governança — limpeza de quartos).~~ **Concluído e validado.**
+12. ~~Especificar e implementar o Módulo 10 (Manutenção).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, e o Módulo 08 fechou a lacuna entre reserva e status do quarto. Próximo módulo a definir — candidatos discutidos: Financeiro/Faturamento, Relatórios e ocupação.
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, e os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário). A partir daqui, o Gustavo deixou a escolha dos próximos módulos a critério do Claude. Únicos papéis do RBAC ainda sem função no sistema: "financeiro". Candidato natural pro Módulo 11: Financeiro/Faturamento.
