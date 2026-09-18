@@ -24,6 +24,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/lib/auth-context'
 import { downloadCsv } from '@/lib/csv'
 import { formatCurrency } from '@/lib/format'
+import { fetchHotel } from '@/lib/hotel'
+import { generatePaymentReceiptPdf } from '@/lib/receipt'
 import { supabase } from '@/lib/supabase'
 import { paymentSchema, type PaymentInput } from '@/lib/validations'
 import type { Role } from '@/types/auth'
@@ -125,6 +127,8 @@ export function FinanceiroPage() {
     queryKey: ['payments'],
     queryFn: fetchPayments,
   })
+
+  const { data: hotel } = useQuery({ queryKey: ['hotel'], queryFn: fetchHotel })
 
   const paidByReservation = React.useMemo(() => {
     const totals = new Map<string, number>()
@@ -374,7 +378,7 @@ export function FinanceiroPage() {
                       <TableHead>Valor</TableHead>
                       <TableHead>Forma</TableHead>
                       <TableHead>Observações</TableHead>
-                      {isAdmin && <TableHead className="text-right">Ações</TableHead>}
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -386,22 +390,31 @@ export function FinanceiroPage() {
                         <TableCell>{formatCurrency(Number(payment.amount))}</TableCell>
                         <TableCell>{PAYMENT_METHOD_LABELS[payment.method]}</TableCell>
                         <TableCell className="text-muted-foreground">{payment.notes ?? '—'}</TableCell>
-                        {isAdmin && (
-                          <TableCell className="space-x-2 text-right">
-                            <EditPaymentDialog payment={payment} />
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => {
-                                if (window.confirm('Excluir este pagamento? Essa ação não pode ser desfeita.')) {
-                                  deletePayment.mutate(payment.id)
-                                }
-                              }}
-                            >
-                              Excluir
-                            </Button>
-                          </TableCell>
-                        )}
+                        <TableCell className="space-x-2 text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => generatePaymentReceiptPdf(payment, hotel ?? null)}
+                          >
+                            Recibo (PDF)
+                          </Button>
+                          {isAdmin && (
+                            <>
+                              <EditPaymentDialog payment={payment} />
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                  if (window.confirm('Excluir este pagamento? Essa ação não pode ser desfeita.')) {
+                                    deletePayment.mutate(payment.id)
+                                  }
+                                }}
+                              >
+                                Excluir
+                              </Button>
+                            </>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
