@@ -102,6 +102,7 @@ export const reservationSchema = z
     children: z.coerce.number().int().min(0, 'Não pode ser negativo.'),
     daily_rate: z.coerce.number().min(0, 'A diária não pode ser negativa.'),
     status: z.enum(RESERVATION_STATUSES, { errorMap: () => ({ message: 'Selecione o status.' }) }),
+    occupant_name: z.string().optional(),
     notes: z.string().optional(),
   })
   .refine((data) => new Date(data.check_out) > new Date(data.check_in), {
@@ -109,6 +110,13 @@ export const reservationSchema = z
     path: ['check_out'],
   })
 export type ReservationInput = z.infer<typeof reservationSchema>
+
+export const groupReservationSchema = z.object({
+  guest_id: z.string().min(1, 'Selecione o hóspede responsável.'),
+  check_in: z.string().min(1, 'Informe a data de entrada.'),
+  check_out: z.string().min(1, 'Informe a data de saída.'),
+})
+export type GroupReservationInput = z.infer<typeof groupReservationSchema>
 
 export const maintenanceRequestSchema = z.object({
   room_id: z.string().min(1, 'Selecione o quarto.'),
@@ -122,3 +130,8 @@ export const paymentSchema = z.object({
   notes: z.string().optional(),
 })
 export type PaymentInput = z.infer<typeof paymentSchema>
+
+export const internalNoteSchema = z.object({
+  content: z.string().trim().min(1, 'Escreva a observação.').max(1000, 'Observação muito longa (máx. 1000 caracteres).'),
+})
+export type InternalNoteInput = z.infer<typeof internalNoteSchema>

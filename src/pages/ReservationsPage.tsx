@@ -25,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/lib/auth-context'
 import { formatCurrency } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
-import { reservationSchema, type ReservationInput } from '@/lib/validations'
+import { groupReservationSchema, reservationSchema, type GroupReservationInput, type ReservationInput } from '@/lib/validations'
 import type { Role } from '@/types/auth'
 import type { Guest } from '@/types/guest'
 import {
@@ -70,6 +70,18 @@ async function fetchRoomsForSelect(): Promise<RoomOption[]> {
     .order('number', { ascending: true })
   if (error) throw error
   return (data as unknown as RoomOption[]) ?? []
+}
+
+/** IDs de quartos com alguma reserva ativa cujo período cruza com [checkIn, checkOut). */
+async function fetchOverlappingRoomIds(checkIn: string, checkOut: string): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('room_id')
+    .neq('status', 'cancelada')
+    .lt('check_in', checkOut)
+    .gt('check_out', checkIn)
+  if (error) throw error
+  return new Set((data ?? []).map((row) => row.room_id))
 }
 
 function errorCode(error: unknown): string | undefined {
@@ -228,7 +240,12 @@ export function ReservationsPage() {
                   : 'Cadastro e acompanhamento de reservas.'}
             </CardDescription>
           </div>
-          {isStaff && <ReservationDialog guests={guests ?? []} rooms={rooms ?? []} />}
+          {isStaff && (
+            <div className="flex gap-2">
+              <GroupReservationDialog guests={guests ?? []} rooms={rooms ?? []} />
+              <ReservationDialog guests={guests ?? []} rooms={rooms ?? []} />
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {reservations && reservations.length > 0 && (
@@ -275,7 +292,12 @@ export function ReservationsPage() {
                   const nights = nightsBetween(reservation.check_in, reservation.check_out)
                   return (
                     <TableRow key={reservation.id}>
-                      <TableCell>{reservation.guests?.full_name ?? '—'}</TableCell>
+                      <TableCell>
+                        {reservation.guests?.full_name ?? '—'}
+                        {reservation.occupant_name && (
+                          <div className="text-xs text-muted-foreground">Ocupante: {reservation.occupant_name}</div>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {reservation.rooms?.number ?? '—'}
                         {reservation.rooms?.room_types?.name && (
@@ -464,6 +486,7 @@ function ReservationDialog({
           children: reservation.children,
           daily_rate: reservation.daily_rate,
           status: reservation.status,
+          occupant_name: reservation.occupant_name ?? '',
           notes: reservation.notes ?? '',
         }
       : {
@@ -475,6 +498,7 @@ function ReservationDialog({
           children: 0,
           daily_rate: 0,
           status: 'confirmada',
+          occupant_name: '',
           notes: '',
         },
   })
@@ -490,6 +514,7 @@ function ReservationDialog({
         children: values.children,
         daily_rate: values.daily_rate,
         status: values.status,
+        occupant_name: values.occupant_name || null,
         notes: values.notes || null,
       }
       const { error } = isEdit
@@ -642,6 +667,15 @@ function ReservationDialog({
           )}
 
           <div className="space-y-2">
+            <Label htmlFor="occupant_name">Nome de quem fica no quarto (opcional)</Label>
+            <Input
+              id="occupant_name"
+              placeholder="Preencha só se for diferente do hóspede responsável"
+              {...register('occupant_name')}
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="notes">Observações (opcional)</Label>
             <Input id="notes" {...register('notes')} />
           </div>
@@ -649,6 +683,244 @@ function ReservationDialog({
           <DialogFooter>
             <Button type="submit" disabled={saveReservation.isPending}>
               {saveReservation.isPending ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * Reserva vários quartos de uma vez pro mesmo hóspede responsável (ex.: empresa que reserva
+ * vários quartos pros funcionários) — mesmas datas, um quarto por linha de reserva (igual ao
+ * fluxo normal), mas criados todos juntos. Cada quarto pode ter um nome de ocupante diferente.
+ */
+function GroupReservationDialog({
+  guests,
+  rooms,
+}: {
+  guests: Pick<Guest, 'id' | 'full_name'>[]
+  rooms: RoomOption[]
+}) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = React.useState(false)
+  // roomId -> nome do ocupante (chave presente = quarto marcado; valor pode ser vazio)
+  const [selectedRooms, setSelectedRooms] = React.useState<Map<string, string>>(new Map())
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<GroupReservationInput>({
+    resolver: zodResolver(groupReservationSchema),
+    defaultValues: { guest_id: '', check_in: '', check_out: '' },
+  })
+
+  const checkIn = watch('check_in')
+  const checkOut = watch('check_out')
+  const periodReady = !!checkIn && !!checkOut && new Date(checkOut) > new Date(checkIn)
+
+  const { data: overlappingRoomIds, isLoading: loadingAvailability } = useQuery({
+    queryKey: ['overlapping-rooms', checkIn, checkOut],
+    queryFn: () => fetchOverlappingRoomIds(checkIn, checkOut),
+    enabled: open && periodReady,
+  })
+
+  const availableRooms = React.useMemo(() => {
+    if (!overlappingRoomIds) return []
+    return rooms.filter((room) => !overlappingRoomIds.has(room.id))
+  }, [rooms, overlappingRoomIds])
+
+  React.useEffect(() => {
+    // troca de período invalida a seleção anterior (quartos disponíveis mudam)
+    setSelectedRooms(new Map())
+  }, [checkIn, checkOut])
+
+  const toggleRoom = (roomId: string, checked: boolean) => {
+    setSelectedRooms((prev) => {
+      const next = new Map(prev)
+      if (checked) next.set(roomId, next.get(roomId) ?? '')
+      else next.delete(roomId)
+      return next
+    })
+  }
+
+  const setOccupantName = (roomId: string, name: string) => {
+    setSelectedRooms((prev) => {
+      if (!prev.has(roomId)) return prev
+      const next = new Map(prev)
+      next.set(roomId, name)
+      return next
+    })
+  }
+
+  const createGroup = useMutation({
+    mutationFn: async (values: GroupReservationInput) => {
+      const rows = Array.from(selectedRooms.entries()).map(([roomId, occupantName]) => {
+        const room = rooms.find((r) => r.id === roomId)
+        return {
+          guest_id: values.guest_id,
+          room_id: roomId,
+          check_in: values.check_in,
+          check_out: values.check_out,
+          adults: 1,
+          children: 0,
+          daily_rate: room?.room_types?.base_price ?? 0,
+          status: 'confirmada' as const,
+          occupant_name: occupantName.trim() || null,
+        }
+      })
+      const { error } = await supabase.from('reservations').insert(rows)
+      if (error) throw error
+      return rows.length
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['reservations'] })
+      toast.success(`${count} reserva${count > 1 ? 's' : ''} criada${count > 1 ? 's' : ''}.`)
+      reset()
+      setSelectedRooms(new Map())
+      setOpen(false)
+    },
+    onError: (error) => {
+      const code = errorCode(error)
+      if (code === '23P01') {
+        toast.error(
+          'Um dos quartos escolhidos acabou de ser reservado por outra pessoa. Reabra o formulário e tente de novo.'
+        )
+      } else {
+        toast.error('Não foi possível criar as reservas do grupo.')
+      }
+    },
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" disabled={guests.length === 0 || rooms.length === 0}>
+          Reserva em grupo
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Reserva em grupo</DialogTitle>
+          <DialogDescription>
+            Reserva vários quartos de uma vez pro mesmo hóspede responsável (ex.: empresa reservando pra vários
+            funcionários), com as mesmas datas.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          onSubmit={handleSubmit((values) => createGroup.mutate(values))}
+          className="space-y-4"
+        >
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Hóspede responsável</Label>
+              <GuestDialog
+                trigger={
+                  <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs">
+                    + Novo hóspede
+                  </Button>
+                }
+                onSaved={(newGuest) => {
+                  queryClient.invalidateQueries({ queryKey: ['guests-select'] })
+                  setValue('guest_id', newGuest.id)
+                }}
+              />
+            </div>
+            <Controller
+              control={control}
+              name="guest_id"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Quem será cobrado/responsável (ex.: a empresa)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {guests.map((guest) => (
+                      <SelectItem key={guest.id} value={guest.id}>
+                        {guest.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {errors.guest_id && <p className="text-sm text-destructive">{errors.guest_id.message}</p>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="group_check_in">Check-in</Label>
+              <Input id="group_check_in" type="date" {...register('check_in')} />
+              {errors.check_in && <p className="text-sm text-destructive">{errors.check_in.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="group_check_out">Check-out</Label>
+              <Input id="group_check_out" type="date" {...register('check_out')} />
+              {errors.check_out && <p className="text-sm text-destructive">{errors.check_out.message}</p>}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Quartos</Label>
+            {!periodReady && (
+              <p className="text-sm text-muted-foreground">Informe check-in e check-out pra ver os quartos livres.</p>
+            )}
+            {periodReady && loadingAvailability && (
+              <p className="text-sm text-muted-foreground">Verificando disponibilidade...</p>
+            )}
+            {periodReady && !loadingAvailability && availableRooms.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nenhum quarto livre nesse período.</p>
+            )}
+            {periodReady && !loadingAvailability && availableRooms.length > 0 && (
+              <div className="max-h-64 space-y-2 overflow-y-auto rounded-md border p-2">
+                {availableRooms.map((room) => {
+                  const checked = selectedRooms.has(room.id)
+                  return (
+                    <div key={room.id} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 shrink-0 rounded border-input"
+                        checked={checked}
+                        onChange={(e) => toggleRoom(room.id, e.target.checked)}
+                        id={`room-${room.id}`}
+                      />
+                      <label htmlFor={`room-${room.id}`} className="w-28 shrink-0 text-sm">
+                        {room.number}
+                        {room.room_types?.name && (
+                          <span className="text-xs text-muted-foreground"> ({room.room_types.name})</span>
+                        )}
+                      </label>
+                      <Input
+                        placeholder="Nome de quem fica no quarto (opcional)"
+                        className="h-8"
+                        disabled={!checked}
+                        value={selectedRooms.get(room.id) ?? ''}
+                        onChange={(e) => setOccupantName(room.id, e.target.value)}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {selectedRooms.size > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {selectedRooms.size} quarto{selectedRooms.size > 1 ? 's' : ''} selecionado
+                {selectedRooms.size > 1 ? 's' : ''}.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button type="submit" disabled={createGroup.isPending || selectedRooms.size === 0}>
+              {createGroup.isPending
+                ? 'Salvando...'
+                : `Criar ${selectedRooms.size > 0 ? selectedRooms.size : ''} reserva${selectedRooms.size !== 1 ? 's' : ''}`}
             </Button>
           </DialogFooter>
         </form>
