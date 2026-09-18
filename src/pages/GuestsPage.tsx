@@ -3,6 +3,7 @@ import * as React from 'react'
 import { toast } from 'sonner'
 
 import { GuestDialog } from '@/components/GuestDialog'
+import { NotesDialog } from '@/components/NotesDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -143,6 +144,7 @@ export function GuestsPage() {
                   <TableHead>Contato</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Estadias</TableHead>
+                  <TableHead>Notas</TableHead>
                   {isStaff && <TableHead className="text-right">Ações</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -173,6 +175,9 @@ export function GuestsPage() {
                         guestName={guest.full_name}
                         reservations={reservationsByGuest.get(guest.id) ?? []}
                       />
+                    </TableCell>
+                    <TableCell>
+                      <NotesDialog subjectType="guest" subjectId={guest.id} subjectLabel={guest.full_name} />
                     </TableCell>
                     {isStaff && (
                       <TableCell className="space-x-2 text-right">

@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { NotesDialog } from '@/components/NotesDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -183,6 +184,7 @@ export function RoomsPage() {
                   <TableHead>Tipo</TableHead>
                   <TableHead>Andar</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Notas</TableHead>
                   {isAdmin && <TableHead className="text-right">Ações</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -206,6 +208,9 @@ export function RoomsPage() {
                       >
                         {ROOM_STATUS_LABELS[room.status]}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <NotesDialog subjectType="room" subjectId={room.id} subjectLabel={room.number} />
                     </TableCell>
                     {isAdmin && (
                       <TableCell className="space-x-2 text-right">
