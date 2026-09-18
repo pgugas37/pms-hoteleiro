@@ -51,5 +51,7 @@ Veja [`docs/STATUS.md`](./docs/STATUS.md) para o histórico de decisões, módul
 - [x] Módulo 14 — Histórico de estadias por hóspede (concluído e validado)
 - [x] Módulo 15 — Painel do dia (concluído e validado)
 - [x] Módulo 16 — Recibo de pagamento em PDF (concluído e validado)
+- [x] Módulo 17 — Observações internas por quarto/hóspede (concluído e validado)
+- [x] Módulo 18 — Reserva em grupo (multi-quarto) e nome do ocupante (concluído e validado)
 
 > O schema do banco (Módulos 01 e 02) já está aplicado no Supabase. O código do frontend está sendo reconstruído neste repositório a partir do zero, usando o schema existente como referência.

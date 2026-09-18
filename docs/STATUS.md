@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 16)_
+_Última atualização: 18/09/2026 (Módulo 18)_
 
 ## Contexto
 
@@ -41,7 +41,9 @@ Stack de frontend aprovada: React 18 + TypeScript + Vite + Tailwind CSS + shadcn
   19. `module10_maintenance`
   20. `module11_financeiro`
   21. `module11_payments_edit_delete`
-- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms`, `public.guests`, `public.reservations`, `public.maintenance_requests`, `public.payments` (todas com RLS habilitado).
+  22. `module17_internal_notes`
+  23. `module18_reservation_occupant_name`
+- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms`, `public.guests`, `public.reservations`, `public.maintenance_requests`, `public.payments`, `public.internal_notes` (todas com RLS habilitado).
 - Função auxiliar `private.has_role(roles text[])` — generalização de `private.is_admin()`, usada nas policies de `guests` e `reservations` pra permitir admin, gerente e recepção.
 - Funções RPC (`security definer`, checagem de papel manual por dentro): `checkin_reservation`, `checkout_reservation`, `cancel_reservation` (reserva e quarto mudam de status juntos, na mesma transação), `mark_room_clean` (governança), `report_maintenance_issue`/`resolve_maintenance_request` (manutenção), `register_payment` (financeiro — edição e exclusão de pagamento já usam update/delete direto, protegidos por RLS admin-only, sem precisar de RPC).
 - Nota: a partir da migration 13 os nomes pararam de seguir o padrão `00NN_moduloXX_...` (ficou só `moduloXX_...`, sem número) — cosmético, não afeta o funcionamento; a ordem real é pela data/hora de aplicação, não pelo nome.
@@ -229,6 +231,32 @@ Concluído e validado. Puramente frontend (gera o PDF no navegador, via `jspdf`)
 
 Testado rodando local: gerar o recibo de um pagamento e conferir os dados no PDF baixado.
 
+## Módulo 17 — Observações internas por quarto/hóspede ✅
+
+Concluído e validado. Nova tabela `internal_notes` (migration `module17_internal_notes`) — diferente do campo "observações" único que já existia no cadastro de quarto e de hóspede (sobrescrito a cada edição), esse é um **log**: várias anotações, cada uma com autor e data/hora, sem apagar as anteriores.
+
+- Vinculada a um hóspede OU a um quarto (nunca os dois — constraint no banco garante isso). RLS: leitura pra todo autenticado (todos os papéis são internos/staff neste sistema); criação também liberada pra qualquer papel, sempre com `created_by`/`created_by_name` do próprio usuário autenticado (não dá pra criar nota em nome de outro); exclusão só admin.
+- **Frontend:** componente reutilizável `NotesDialog` — botão "Notas (N)" nas listas de **Quartos** e **Hóspedes**, abrindo um dialog com o histórico e um campo pra adicionar observação nova.
+- Componente novo `src/components/ui/textarea.tsx` (não existia no projeto ainda).
+
+Testado rodando local: adicionar observação num quarto e num hóspede, conferir autor/data, excluir como admin.
+
+**Nota de processo:** o commit de código deste módulo acabou ficando pendente por alguns módulos (a conversa desviou pro problema do multi-quarto antes da validação) — os arquivos ficaram só no disco do Gustavo até serem detectados via `git status` e commitados junto com o Módulo 18.
+
+## Módulo 18 — Reserva em grupo (multi-quarto) e nome do ocupante ✅
+
+Concluído e validado. Motivado por um caso real: empresas que reservam vários quartos de uma vez (um funcionário por quarto). Migration `module18_reservation_occupant_name` adiciona a coluna `occupant_name` (opcional) em `reservations` — nome de quem efetivamente fica no quarto, quando diferente do hóspede responsável/faturado pela reserva.
+
+- **Reserva individual:** ganhou o campo opcional "Nome de quem fica no quarto".
+- **Reserva em grupo (botão novo "Reserva em grupo" na tela Reservas):** escolhe o hóspede responsável (ex.: a empresa/CNPJ) e o período; o sistema lista os quartos livres nesse período (consulta as reservas ativas que cruzam as datas); marca quantos quartos quiser via checkbox, com um campo de nome do ocupante por quarto; ao confirmar, cria uma reserva por quarto marcado, todas de uma vez (mesmo caminho de insert direto que a reserva individual usa, sem RPC — a trava anti-overbooking do Módulo 07, por quarto, garante a integridade mesmo em lote).
+- Listagem de Reservas: nome do ocupante aparece como uma linha menor abaixo do hóspede responsável, facilitando informar pra empresa quem está em qual quarto.
+
+**Contexto que motivou o módulo:** o Gustavo reportou que "não era possível o mesmo hóspede ter duas reservas simultâneas". Investigação (sem alterar nada) mostrou que a trava anti-overbooking do banco é por **quarto**, não por hóspede — um mesmo hóspede sempre pôde ter reservas simultâneas em quartos diferentes (confirmado com um teste real, criado e desfeito no mesmo banco). O problema de verdade era só cadastro: existia **1 quarto só** no sistema. Foram inseridos os outros 48 quartos (placeholders numerados 1–49, mesmo tipo/preço do quarto existente, pra o Gustavo editar depois com os dados reais) direto no banco — não é código, não precisa de commit.
+
+Testado rodando local: reserva em grupo com 2-3 quartos pro mesmo hóspede, nomes de ocupante diferentes em cada, conferido na listagem.
+
+**Ajuste de tooling (fora dos módulos):** o pnpm criou automaticamente uma entrada `core-js: set this to true or false` em `pnpm-workspace.yaml` (mecanismo de aprovação de scripts de instalação, mesmo aviso `ERR_PNPM_IGNORED_BUILDS` do Módulo 16) — definido como `false` (o script do `core-js` só imprime um aviso, não afeta o `jspdf`).
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -270,5 +298,7 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 16. ~~Especificar e implementar o Módulo 14 (Histórico de estadias por hóspede).~~ **Concluído e validado.**
 17. ~~Especificar e implementar o Módulo 15 (Painel do dia).~~ **Concluído e validado.**
 18. ~~Especificar e implementar o Módulo 16 (Recibo de pagamento em PDF).~~ **Concluído e validado.**
+19. ~~Especificar e implementar o Módulo 17 (Observações internas por quarto/hóspede).~~ **Concluído e validado.**
+20. ~~Especificar e implementar o Módulo 18 (Reserva em grupo e nome do ocupante).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), e o Módulo 16 deu ao Financeiro um comprovante formal em PDF pra entregar ao hóspede. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09). Candidato possível daqui pra frente: observações internas por quarto/hóspede (notas que ficam registradas, visíveis pra equipe, sem aparecer pro hóspede).
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, e o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto. O hotel também já tem os 49 quartos cadastrados (48 deles como placeholder, aguardando o Gustavo ajustar número/tipo/andar reais). A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
