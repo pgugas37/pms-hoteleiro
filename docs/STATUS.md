@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 14)_
+_Última atualização: 18/09/2026 (Módulo 15)_
 
 ## Contexto
 
@@ -209,6 +209,15 @@ Concluído e validado. Puramente frontend (query sobre `reservations` filtrada p
 
 Testado rodando local: abrir o histórico de um hóspede com reservas em vários status e conferir se contagem, período e valores batem com a tela de Reservas.
 
+## Módulo 15 — Painel do dia ✅
+
+Concluído e validado. Puramente frontend (query sobre `reservations` filtrada por status e data no cliente) — sem migration no banco.
+
+- Novo card **"Hoje"** no Dashboard (admin/gerente/recepção), exibido só quando há algo relevante — some por completo se não houver nenhuma chegada, saída ou atraso no momento (não é bug, é o esperado em dias sem movimento).
+- Três seções dentro do card: **Atrasadas** (reservas confirmadas com check-in antes de hoje e ainda não feitas — badge vermelho), **Chegadas de hoje** (confirmadas com check-in hoje) e **Saídas de hoje** (em andamento com check-out hoje), cada uma listando hóspede e quarto, com link "Ver reservas" pra tela `/reservas`.
+
+Testado rodando local: reserva confirmada com check-in de hoje aparecendo em "Chegadas de hoje", reserva em andamento com check-out de hoje aparecendo em "Saídas de hoje", e reserva confirmada com check-in no passado aparecendo em "Atrasadas".
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -248,5 +257,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 14. ~~Especificar e implementar o Módulo 12 (Filtros e período).~~ **Concluído e validado.**
 15. ~~Especificar e implementar o Módulo 13 (Exportação de relatórios em CSV).~~ **Concluído e validado.**
 16. ~~Especificar e implementar o Módulo 14 (Histórico de estadias por hóspede).~~ **Concluído e validado.**
+17. ~~Especificar e implementar o Módulo 15 (Painel do dia).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), e o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09). Candidatos possíveis daqui pra frente: notificações/lembretes (ex.: reservas confirmadas sem check-in no dia), exportação em PDF, ou observações internas por quarto/hóspede.
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, e o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), cobrindo o candidato de "notificações/lembretes" cogitado antes. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09). Candidatos possíveis daqui pra frente: exportação em PDF (recibo de pagamento, fatura), ou observações internas por quarto/hóspede.
