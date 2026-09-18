@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/lib/auth-context'
+import { downloadCsv } from '@/lib/csv'
 import { formatCurrency } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 import { paymentSchema, type PaymentInput } from '@/lib/validations'
@@ -96,6 +97,11 @@ function rpcErrorMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
+/** Números em CSV pt-BR (separador ";") usam vírgula como separador decimal. */
+function toCsvAmount(value: number): string {
+  return value.toFixed(2).replace('.', ',')
+}
+
 export function FinanceiroPage() {
   const { profile } = useAuth()
   const canManage = !!profile && PAGE_ROLES.includes(profile.role)
@@ -164,6 +170,39 @@ export function FinanceiroPage() {
     onError: () => toast.error('Não foi possível excluir o pagamento.'),
   })
 
+  const exportBillingCsv = () => {
+    const rows = billing.map(({ reservation, total, paid, balance }) => [
+      reservation.guests?.full_name ?? '—',
+      reservation.rooms?.number ?? '—',
+      new Date(`${reservation.check_in}T00:00:00`).toLocaleDateString('pt-BR'),
+      new Date(`${reservation.check_out}T00:00:00`).toLocaleDateString('pt-BR'),
+      toCsvAmount(total),
+      toCsvAmount(paid),
+      toCsvAmount(balance > 0 ? balance : 0),
+    ])
+    downloadCsv(
+      `faturamento_${periodMode}_${toIsoDate(new Date())}.csv`,
+      ['Hóspede', 'Quarto', 'Check-in', 'Check-out', 'Total (R$)', 'Pago (R$)', 'Saldo (R$)'],
+      rows
+    )
+  }
+
+  const exportPaymentsCsv = () => {
+    const rows = (payments ?? []).map((payment) => [
+      new Date(payment.created_at).toLocaleString('pt-BR'),
+      payment.reservations?.guests?.full_name ?? '—',
+      payment.reservations?.rooms?.number ?? '—',
+      toCsvAmount(Number(payment.amount)),
+      PAYMENT_METHOD_LABELS[payment.method],
+      payment.notes ?? '',
+    ])
+    downloadCsv(
+      `pagamentos_${toIsoDate(new Date())}.csv`,
+      ['Data', 'Hóspede', 'Quarto', 'Valor (R$)', 'Forma', 'Observações'],
+      rows
+    )
+  }
+
   if (!canManage) {
     return (
       <div className="mx-auto max-w-4xl space-y-6 p-6">
@@ -230,12 +269,19 @@ export function FinanceiroPage() {
 
         <TabsContent value="faturamento">
           <Card>
-            <CardHeader>
-              <CardTitle>Faturamento por reserva</CardTitle>
-              <CardDescription>
-                Reservas não canceladas com check-in no período selecionado ({PERIOD_MODE_LABELS[periodMode]}), com
-                total (diária × noites), valor já pago (em qualquer data) e saldo pendente.
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Faturamento por reserva</CardTitle>
+                <CardDescription>
+                  Reservas não canceladas com check-in no período selecionado ({PERIOD_MODE_LABELS[periodMode]}), com
+                  total (diária × noites), valor já pago (em qualquer data) e saldo pendente.
+                </CardDescription>
+              </div>
+              {billing.length > 0 && (
+                <Button variant="outline" size="sm" onClick={exportBillingCsv}>
+                  Exportar CSV
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               {loadingReservations && <p className="text-sm text-muted-foreground">Carregando...</p>}
@@ -296,13 +342,20 @@ export function FinanceiroPage() {
 
         <TabsContent value="pagamentos">
           <Card>
-            <CardHeader>
-              <CardTitle>Pagamentos recebidos</CardTitle>
-              <CardDescription>
-                Histórico de todos os pagamentos registrados, mais recentes primeiro — não é afetado pelo filtro de
-                período acima.
-                {isAdmin && ' Pagamentos lançados errado podem ser editados ou excluídos aqui.'}
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Pagamentos recebidos</CardTitle>
+                <CardDescription>
+                  Histórico de todos os pagamentos registrados, mais recentes primeiro — não é afetado pelo filtro de
+                  período acima.
+                  {isAdmin && ' Pagamentos lançados errado podem ser editados ou excluídos aqui.'}
+                </CardDescription>
+              </div>
+              {(payments ?? []).length > 0 && (
+                <Button variant="outline" size="sm" onClick={exportPaymentsCsv}>
+                  Exportar CSV
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               {loadingPayments && <p className="text-sm text-muted-foreground">Carregando...</p>}
