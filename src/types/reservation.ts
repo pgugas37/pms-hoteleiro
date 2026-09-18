@@ -8,6 +8,15 @@ export const RESERVATION_STATUS_LABELS: Record<ReservationStatus, string> = {
   cancelada: 'Cancelada',
 }
 
+export const CANCELLATION_REASONS = ['hospede_avisou', 'no_show', 'outro'] as const
+export type CancellationReason = (typeof CANCELLATION_REASONS)[number]
+
+export const CANCELLATION_REASON_LABELS: Record<CancellationReason, string> = {
+  hospede_avisou: 'Hóspede avisou',
+  no_show: 'No-show (não compareceu)',
+  outro: 'Outro motivo',
+}
+
 export interface Reservation {
   id: string
   guest_id: string
@@ -24,6 +33,8 @@ export interface Reservation {
   checked_out_at: string | null
   invoice_issued: boolean
   invoice_issued_at: string | null
+  cancellation_reason: CancellationReason | null
+  cancellation_notes: string | null
   created_at: string
   updated_at: string
 }

@@ -23,6 +23,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/lib/auth-context'
 import { formatCurrency } from '@/lib/format'
 import { fetchHotel } from '@/lib/hotel'
@@ -32,9 +33,12 @@ import { groupReservationSchema, reservationSchema, type GroupReservationInput, 
 import type { Role } from '@/types/auth'
 import type { Guest } from '@/types/guest'
 import {
+  CANCELLATION_REASONS,
+  CANCELLATION_REASON_LABELS,
   RESERVATION_STATUSES,
   RESERVATION_STATUS_LABELS,
   nightsBetween,
+  type CancellationReason,
   type ReservationStatus,
   type ReservationWithRelations,
 } from '@/types/reservation'
@@ -149,6 +153,7 @@ export function ReservationsPage() {
 
   const [search, setSearch] = React.useState(() => searchParams.get('q') ?? '')
   const [statusFilter, setStatusFilter] = React.useState<ReservationStatus | 'todas'>('todas')
+  const todayStr = React.useMemo(() => new Date().toISOString().slice(0, 10), [])
 
   const { data: reservations, isLoading } = useQuery({
     queryKey: ['reservations'],
@@ -159,8 +164,20 @@ export function ReservationsPage() {
   const { data: hotel } = useQuery({ queryKey: ['hotel'], queryFn: fetchHotel })
 
   const cancelReservation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc('cancel_reservation', { p_reservation_id: id })
+    mutationFn: async ({
+      id,
+      reason,
+      notes,
+    }: {
+      id: string
+      reason: CancellationReason
+      notes: string
+    }) => {
+      const { error } = await supabase.rpc('cancel_reservation', {
+        p_reservation_id: id,
+        p_reason: reason,
+        p_notes: notes.trim() || null,
+      })
       if (error) throw error
     },
     onSuccess: () => {
@@ -343,9 +360,19 @@ export function ReservationsPage() {
                       <TableCell>{new Date(`${reservation.check_in}T00:00:00`).toLocaleDateString('pt-BR')}</TableCell>
                       <TableCell>{new Date(`${reservation.check_out}T00:00:00`).toLocaleDateString('pt-BR')}</TableCell>
                       <TableCell>
-                        <Badge variant={statusBadgeVariant(reservation.status)}>
-                          {RESERVATION_STATUS_LABELS[reservation.status]}
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <Badge variant={statusBadgeVariant(reservation.status)}>
+                            {RESERVATION_STATUS_LABELS[reservation.status]}
+                          </Badge>
+                          {reservation.status === 'confirmada' && reservation.check_in < todayStr && (
+                            <Badge variant="destructive">Atrasada</Badge>
+                          )}
+                        </div>
+                        {reservation.status === 'cancelada' && reservation.cancellation_reason && (
+                          <div className="text-xs text-muted-foreground">
+                            {CANCELLATION_REASON_LABELS[reservation.cancellation_reason]}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>{formatCurrency(reservation.daily_rate * nights)}</TableCell>
                       {isStaff && (
@@ -377,17 +404,12 @@ export function ReservationsPage() {
                             </Button>
                           )}
                           {ACTIVE_STATUSES.includes(reservation.status) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                if (window.confirm('Cancelar esta reserva?')) {
-                                  cancelReservation.mutate(reservation.id)
-                                }
-                              }}
-                            >
-                              Cancelar
-                            </Button>
+                            <CancelReservationDialog
+                              reservation={reservation}
+                              isOverdue={reservation.status === 'confirmada' && reservation.check_in < todayStr}
+                              isPending={cancelReservation.isPending}
+                              onConfirm={(input) => cancelReservation.mutate({ id: reservation.id, ...input })}
+                            />
                           )}
                           {isAdmin && (reservation.status === 'cancelada' || reservation.status === 'finalizada') && (
                             <Button
@@ -494,6 +516,93 @@ export function ReservationsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+/**
+ * Dialog de confirmação de cancelamento com motivo (hóspede avisou / no-show / outro) e observação
+ * opcional. Quando a reserva já está com check-in atrasado (confirmada, mas a data já passou), o
+ * motivo já vem pré-selecionado como "No-show", já que é o caso mais comum aqui.
+ */
+function CancelReservationDialog({
+  reservation,
+  isOverdue,
+  isPending,
+  onConfirm,
+}: {
+  reservation: ReservationWithRelations
+  isOverdue: boolean
+  isPending: boolean
+  onConfirm: (input: { reason: CancellationReason; notes: string }) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [reason, setReason] = React.useState<CancellationReason>(isOverdue ? 'no_show' : 'hospede_avisou')
+  const [notes, setNotes] = React.useState('')
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) {
+          setReason(isOverdue ? 'no_show' : 'hospede_avisou')
+          setNotes('')
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          Cancelar
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Cancelar reserva</DialogTitle>
+          <DialogDescription>
+            {reservation.guests?.full_name ?? '—'} — quarto {reservation.rooms?.number ?? '—'}. Libera o quarto e
+            não pode ser desfeito.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Motivo</Label>
+            <Select value={reason} onValueChange={(value) => setReason(value as CancellationReason)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CANCELLATION_REASONS.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {CANCELLATION_REASON_LABELS[r]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="cancellation-notes">Observação (opcional)</Label>
+            <Textarea
+              id="cancellation-notes"
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="destructive"
+            disabled={isPending}
+            onClick={() => {
+              onConfirm({ reason, notes })
+              setOpen(false)
+            }}
+          >
+            {isPending ? 'Cancelando...' : 'Confirmar cancelamento'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -732,6 +841,12 @@ function ReservationDialog({
                 {RESERVATION_STATUS_LABELS[reservation.status]} — use os botões "Fazer check-in", "Fazer
                 check-out", "Cancelar" ou "Excluir" na lista para mudar o status.
               </p>
+              {reservation.status === 'cancelada' && reservation.cancellation_reason && (
+                <p className="text-sm text-muted-foreground">
+                  Motivo do cancelamento: {CANCELLATION_REASON_LABELS[reservation.cancellation_reason]}
+                  {reservation.cancellation_notes ? ` — ${reservation.cancellation_notes}` : ''}
+                </p>
+              )}
             </div>
           )}
 
