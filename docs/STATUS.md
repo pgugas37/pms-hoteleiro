@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 19)_
+_Última atualização: 18/09/2026 (Módulo 20)_
 
 ## Contexto
 
@@ -268,6 +268,18 @@ Concluído e validado. Puramente frontend — sem migration no banco. Fica bem m
 
 Testado rodando local: os 49 quartos aparecem na grade, reservas (inclusive as criadas em grupo no Módulo 18) aparecem na cor e nas datas certas, navegação entre períodos funcionando.
 
+## Módulo 20 — Indicadores de desempenho (ocupação, ADR, RevPAR) ✅
+
+Concluído e validado. Puramente frontend — sem migration no banco. Nova aba **"Indicadores"** na tela Financeiro (ao lado de "Faturamento" e "Histórico de pagamentos"), reaproveitando o mesmo seletor de período do Módulo 12.
+
+- **Taxa de ocupação**: percentual de quartos-noite ocupados sobre quartos-noite disponíveis no período (total de quartos × dias do período).
+- **Diária média (ADR — Average Daily Rate)**: receita de diárias no período dividida pelas noites ocupadas.
+- **RevPAR (Revenue per Available Room)**: receita de diárias dividida pelos quartos-noite disponíveis — equivale a ADR × taxa de ocupação.
+- O cálculo usa sobreposição de datas (mesmo padrão do Módulo 19), não o check-in da reserva: uma estadia que começa antes ou termina depois do período só conta as noites que caem dentro do intervalo escolhido, então os números ficam corretos mesmo em períodos parciais.
+- Como taxa de ocupação e RevPAR exigem um intervalo de datas definido, a aba pede pra selecionar um período específico quando o filtro está em "Tudo".
+
+Testado rodando local: aba Indicadores com o filtro "Este mês", números conferidos.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -312,5 +324,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 19. ~~Especificar e implementar o Módulo 17 (Observações internas por quarto/hóspede).~~ **Concluído e validado.**
 20. ~~Especificar e implementar o Módulo 18 (Reserva em grupo e nome do ocupante).~~ **Concluído e validado.**
 21. ~~Especificar e implementar o Módulo 19 (Mapa de ocupação).~~ **Concluído e validado.**
+22. ~~Especificar e implementar o Módulo 20 (Indicadores de desempenho — ocupação, ADR, RevPAR).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto, e o Módulo 19 deu uma visão visual da ocupação dos 49 quartos ao longo dos próximos dias. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto, o Módulo 19 deu uma visão visual da ocupação dos 49 quartos ao longo dos próximos dias, e o Módulo 20 trouxe indicadores de gestão (taxa de ocupação, diária média e RevPAR) pra tela Financeiro. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
