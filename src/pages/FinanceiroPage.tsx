@@ -25,12 +25,20 @@ import { useAuth } from '@/lib/auth-context'
 import { downloadCsv } from '@/lib/csv'
 import { formatCurrency } from '@/lib/format'
 import { fetchHotel } from '@/lib/hotel'
+import { generateMonthlyReportPdf } from '@/lib/monthlyReport'
 import { generatePaymentReceiptPdf } from '@/lib/receipt'
 import { supabase } from '@/lib/supabase'
 import { paymentSchema, type PaymentInput } from '@/lib/validations'
 import type { Role } from '@/types/auth'
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, type PaymentWithReservation } from '@/types/payment'
-import { nightsBetween, type ReservationWithRelations } from '@/types/reservation'
+import {
+  RESERVATION_STATUSES,
+  RESERVATION_STATUS_LABELS,
+  nightsBetween,
+  type CancellationReason,
+  type ReservationStatus,
+  type ReservationWithRelations,
+} from '@/types/reservation'
 
 const PAGE_ROLES: Role[] = ['admin', 'gerente', 'recepcao', 'financeiro']
 
@@ -148,6 +156,45 @@ async function fetchTotalRooms(): Promise<number> {
   return count ?? 0
 }
 
+/** Primeiro e último dia (ISO, inclusive) do mês de um valor "AAAA-MM" (o que o input type="month" devolve). */
+function monthRange(monthStr: string): { start: string; end: string; label: string } {
+  const [yearStr, monthNumStr] = monthStr.split('-')
+  const year = Number(yearStr)
+  const monthIndex = Number(monthNumStr) - 1
+  const start = toIsoDate(new Date(year, monthIndex, 1))
+  const end = toIsoDate(new Date(year, monthIndex + 1, 0))
+  const label = new Date(year, monthIndex, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  return { start, end, label: label.charAt(0).toUpperCase() + label.slice(1) }
+}
+
+interface ReservationStatusRow {
+  status: ReservationStatus
+  cancellation_reason: CancellationReason | null
+}
+
+/** Reservas com check-in dentro do mês (qualquer status, inclusive canceladas — pra contar no-show). */
+async function fetchReservationsForMonth(start: string, end: string): Promise<ReservationStatusRow[]> {
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('status, cancellation_reason')
+    .gte('check_in', start)
+    .lte('check_in', end)
+  if (error) throw error
+  return (data ?? []) as ReservationStatusRow[]
+}
+
+/** Quantidade de hóspedes cadastrados dentro do mês. */
+async function fetchNewGuestsCount(start: string, end: string): Promise<number> {
+  const windowEnd = addDays(end, 1)
+  const { count, error } = await supabase
+    .from('guests')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', `${start}T00:00:00`)
+    .lt('created_at', `${windowEnd}T00:00:00`)
+  if (error) throw error
+  return count ?? 0
+}
+
 function rpcErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === 'object' && error !== null && 'message' in error) {
     const message = (error as { message?: string }).message
@@ -198,7 +245,6 @@ export function FinanceiroPage() {
   const { data: totalRooms } = useQuery({
     queryKey: ['kpi-total-rooms'],
     queryFn: fetchTotalRooms,
-    enabled: hasBoundedPeriod,
   })
 
   const kpi = React.useMemo(() => {
@@ -250,6 +296,67 @@ export function FinanceiroPage() {
     return { faturado, recebido, pendente: faturado - recebido }
   }, [billing])
 
+  // Relatório mensal — mês escolhido independente do filtro de período acima, pra sempre poder
+  // olhar "como foi o mês X" sem precisar trocar o filtro que também afeta Faturamento/Indicadores.
+  const [reportMonth, setReportMonth] = React.useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
+  const reportRange = React.useMemo(() => monthRange(reportMonth), [reportMonth])
+
+  const { data: monthReservations, isLoading: loadingMonthReservations } = useQuery({
+    queryKey: ['monthly-report-reservations', reportRange.start, reportRange.end],
+    queryFn: () => fetchReservationsForMonth(reportRange.start, reportRange.end),
+  })
+
+  const { data: newGuestsCount, isLoading: loadingNewGuests } = useQuery({
+    queryKey: ['monthly-report-new-guests', reportRange.start, reportRange.end],
+    queryFn: () => fetchNewGuestsCount(reportRange.start, reportRange.end),
+  })
+
+  const monthlySummary = React.useMemo(() => {
+    const monthBilling = (reservations ?? [])
+      .filter((r) => r.check_in >= reportRange.start && r.check_in <= reportRange.end)
+      .map((r) => {
+        const total = r.daily_rate * nightsBetween(r.check_in, r.check_out)
+        const paid = paidByReservation.get(r.id) ?? 0
+        return { total, paid }
+      })
+    const faturado = monthBilling.reduce((sum, b) => sum + b.total, 0)
+    const recebido = monthBilling.reduce((sum, b) => sum + b.paid, 0)
+    return { faturado, recebido, pendente: faturado - recebido }
+  }, [reservations, paidByReservation, reportRange])
+
+  const monthlyKpi = React.useMemo(() => {
+    if (!totalRooms) return null
+    const periodDays = daysBetweenInclusive(reportRange.start, reportRange.end)
+    const roomNightsAvailable = totalRooms * periodDays
+    let roomNightsOccupied = 0
+    let roomRevenue = 0
+    for (const r of reservations ?? []) {
+      const nights = clipNightsToPeriod(r.check_in, r.check_out, reportRange.start, reportRange.end)
+      roomNightsOccupied += nights
+      roomRevenue += nights * r.daily_rate
+    }
+    const occupancyRate = roomNightsAvailable > 0 ? roomNightsOccupied / roomNightsAvailable : 0
+    const adr = roomNightsOccupied > 0 ? roomRevenue / roomNightsOccupied : 0
+    const revPar = roomNightsAvailable > 0 ? roomRevenue / roomNightsAvailable : 0
+    return { occupancyRate, adr, revPar }
+  }, [reservations, totalRooms, reportRange])
+
+  const monthlyStatusCounts = React.useMemo(() => {
+    const counts = RESERVATION_STATUSES.reduce(
+      (acc, status) => ({ ...acc, [status]: 0 }),
+      {} as Record<ReservationStatus, number>
+    )
+    let noShowCount = 0
+    for (const r of monthReservations ?? []) {
+      counts[r.status] = (counts[r.status] ?? 0) + 1
+      if (r.status === 'cancelada' && r.cancellation_reason === 'no_show') noShowCount++
+    }
+    return { counts, noShowCount, total: (monthReservations ?? []).length }
+  }, [monthReservations])
+
   const deletePayment = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('payments').delete().eq('id', id)
@@ -279,6 +386,19 @@ export function FinanceiroPage() {
       ['Hóspede', 'Quarto', 'Check-in', 'Check-out', 'Total (R$)', 'Pago (R$)', 'Saldo (R$)'],
       rows
     )
+  }
+
+  const exportMonthlyReportPdf = () => {
+    generateMonthlyReportPdf({
+      hotel: hotel ?? null,
+      monthLabel: reportRange.label,
+      summary: monthlySummary,
+      kpi: monthlyKpi,
+      statusCounts: monthlyStatusCounts.counts,
+      noShowCount: monthlyStatusCounts.noShowCount,
+      totalReservations: monthlyStatusCounts.total,
+      newGuestsCount: newGuestsCount ?? 0,
+    })
   }
 
   const exportPaymentsCsv = () => {
@@ -360,6 +480,7 @@ export function FinanceiroPage() {
           <TabsTrigger value="faturamento">Faturamento</TabsTrigger>
           <TabsTrigger value="pagamentos">Histórico de pagamentos</TabsTrigger>
           <TabsTrigger value="indicadores">Indicadores</TabsTrigger>
+          <TabsTrigger value="relatorio-mensal">Relatório mensal</TabsTrigger>
         </TabsList>
 
         <TabsContent value="faturamento">
@@ -566,6 +687,112 @@ export function FinanceiroPage() {
                   </div>
                 </>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="relatorio-mensal">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Relatório mensal consolidado</CardTitle>
+                <CardDescription>
+                  Fechamento do mês escolhido — financeiro, indicadores de ocupação, reservas por status
+                  (incluindo no-shows) e hóspedes novos. Independente do filtro de período lá em cima.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={exportMonthlyReportPdf}>
+                Exportar PDF
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <Input
+                type="month"
+                value={reportMonth}
+                onChange={(e) => setReportMonth(e.target.value)}
+                className="sm:max-w-[200px]"
+              />
+
+              {(loadingMonthReservations || loadingNewGuests) && (
+                <p className="text-sm text-muted-foreground">Carregando...</p>
+              )}
+
+              <div>
+                <p className="mb-2 text-sm font-medium">Financeiro (reservas com check-in no mês)</p>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Card>
+                    <CardHeader className="space-y-0 pb-2">
+                      <CardDescription>Faturado</CardDescription>
+                      <CardTitle className="text-xl">{formatCurrency(monthlySummary.faturado)}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card>
+                    <CardHeader className="space-y-0 pb-2">
+                      <CardDescription>Recebido</CardDescription>
+                      <CardTitle className="text-xl">{formatCurrency(monthlySummary.recebido)}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card>
+                    <CardHeader className="space-y-0 pb-2">
+                      <CardDescription>Pendente</CardDescription>
+                      <CardTitle className="text-xl">{formatCurrency(monthlySummary.pendente)}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-medium">Indicadores de ocupação</p>
+                {monthlyKpi ? (
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <Card>
+                      <CardHeader className="space-y-0 pb-2">
+                        <CardDescription>Taxa de ocupação</CardDescription>
+                        <CardTitle className="text-xl">{Math.round(monthlyKpi.occupancyRate * 100)}%</CardTitle>
+                      </CardHeader>
+                    </Card>
+                    <Card>
+                      <CardHeader className="space-y-0 pb-2">
+                        <CardDescription>Diária média (ADR)</CardDescription>
+                        <CardTitle className="text-xl">{formatCurrency(monthlyKpi.adr)}</CardTitle>
+                      </CardHeader>
+                    </Card>
+                    <Card>
+                      <CardHeader className="space-y-0 pb-2">
+                        <CardDescription>RevPAR</CardDescription>
+                        <CardTitle className="text-xl">{formatCurrency(monthlyKpi.revPar)}</CardTitle>
+                      </CardHeader>
+                    </Card>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sem quartos cadastrados pra calcular indicadores.</p>
+                )}
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-medium">
+                  Reservas no mês (por check-in) — {monthlyStatusCounts.total} no total
+                </p>
+                <ul className="space-y-1">
+                  {RESERVATION_STATUSES.map((status) => (
+                    <li key={status} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">{RESERVATION_STATUS_LABELS[status]}</span>
+                      <span>{monthlyStatusCounts.counts[status] ?? 0}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Das canceladas, {monthlyStatusCounts.noShowCount} foram registradas como no-show.
+                </p>
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-medium">Hóspedes</p>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Novos hóspedes cadastrados no mês</span>
+                  <span>{newGuestsCount ?? 0}</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
