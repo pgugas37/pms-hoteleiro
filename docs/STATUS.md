@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 20)_
+_Última atualização: 18/09/2026 (Módulo 21)_
 
 ## Contexto
 
@@ -280,6 +280,16 @@ Concluído e validado. Puramente frontend — sem migration no banco. Nova aba *
 
 Testado rodando local: aba Indicadores com o filtro "Este mês", números conferidos.
 
+## Módulo 21 — Ficha Nacional de Registro de Hóspede (FNRH) em PDF ✅
+
+Concluído e validado. Puramente frontend (gera o PDF no navegador, reaproveitando `jspdf` do Módulo 16) — sem migration no banco. Endereça uma exigência legal real da atividade de hospedagem no Brasil: manter um registro formal de cada hóspede.
+
+- Utilitário novo `src/lib/registration.ts` (`generateGuestRegistrationPdf`): monta a ficha em PDF formato A4 com dados do hotel (nome, CNPJ, endereço), dados do hóspede responsável (nome, tipo e número de documento — CPF/CNPJ/passaporte —, nacionalidade, data de nascimento), nome do ocupante do quarto quando diferente do responsável (Módulo 18), dados da hospedagem (quarto, check-in, check-out, noites, adultos, crianças), declaração de veracidade e linha de assinatura do hóspede.
+- Botão "Ficha (PDF)" em cada reserva na tela **Reservas**, disponível pra admin/gerente/recepção (mesmo grupo que já gerencia reservas).
+- A consulta de reservas (`fetchReservations`) passou a trazer também `document_type`, `document_number`, `nationality` e `birth_date` do hóspede vinculado (antes só `id` e `full_name`), pra alimentar a ficha sem precisar de uma segunda consulta.
+
+Testado rodando local: gerar a ficha de uma reserva e conferir os dados do hóspede e da hospedagem no PDF baixado.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -325,5 +335,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 20. ~~Especificar e implementar o Módulo 18 (Reserva em grupo e nome do ocupante).~~ **Concluído e validado.**
 21. ~~Especificar e implementar o Módulo 19 (Mapa de ocupação).~~ **Concluído e validado.**
 22. ~~Especificar e implementar o Módulo 20 (Indicadores de desempenho — ocupação, ADR, RevPAR).~~ **Concluído e validado.**
+23. ~~Especificar e implementar o Módulo 21 (Ficha Nacional de Registro de Hóspede — FNRH — em PDF).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto, o Módulo 19 deu uma visão visual da ocupação dos 49 quartos ao longo dos próximos dias, e o Módulo 20 trouxe indicadores de gestão (taxa de ocupação, diária média e RevPAR) pra tela Financeiro. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto, o Módulo 19 deu uma visão visual da ocupação dos 49 quartos ao longo dos próximos dias, o Módulo 20 trouxe indicadores de gestão (taxa de ocupação, diária média e RevPAR) pra tela Financeiro, e o Módulo 21 deu conformidade com a exigência legal brasileira de registro de hóspede (FNRH). A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
