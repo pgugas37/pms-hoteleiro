@@ -135,3 +135,17 @@ export const internalNoteSchema = z.object({
   content: z.string().trim().min(1, 'Escreva a observação.').max(1000, 'Observação muito longa (máx. 1000 caracteres).'),
 })
 export type InternalNoteInput = z.infer<typeof internalNoteSchema>
+
+export const seasonalRateSchema = z
+  .object({
+    room_type_id: z.string().min(1, 'Selecione o tipo de quarto.'),
+    label: z.string().trim().min(1, 'Dê um nome pra essa tarifa (ex.: Alta temporada).').max(100, 'Nome muito longo.'),
+    start_date: z.string().min(1, 'Informe a data de início.'),
+    end_date: z.string().min(1, 'Informe a data de fim.'),
+    daily_rate: z.coerce.number().positive('A diária precisa ser maior que zero.'),
+  })
+  .refine((data) => data.end_date >= data.start_date, {
+    message: 'A data de fim precisa ser igual ou depois da data de início.',
+    path: ['end_date'],
+  })
+export type SeasonalRateInput = z.infer<typeof seasonalRateSchema>

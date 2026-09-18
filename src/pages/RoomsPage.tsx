@@ -24,8 +24,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useAuth } from '@/lib/auth-context'
 import { formatCurrency } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
-import { roomSchema, roomTypeSchema, type RoomInput, type RoomTypeInput } from '@/lib/validations'
+import {
+  roomSchema,
+  roomTypeSchema,
+  seasonalRateSchema,
+  type RoomInput,
+  type RoomTypeInput,
+  type SeasonalRateInput,
+} from '@/lib/validations'
 import { ROOM_STATUSES, ROOM_STATUS_LABELS, type RoomType, type RoomWithType } from '@/types/room'
+import type { SeasonalRateWithType } from '@/types/seasonalRate'
 
 async function fetchRoomTypes(): Promise<RoomType[]> {
   const { data, error } = await supabase.from('room_types').select('*').order('name', { ascending: true })
@@ -40,6 +48,15 @@ async function fetchRooms(): Promise<RoomWithType[]> {
     .order('number', { ascending: true })
   if (error) throw error
   return (data as unknown as RoomWithType[]) ?? []
+}
+
+async function fetchSeasonalRates(): Promise<SeasonalRateWithType[]> {
+  const { data, error } = await supabase
+    .from('seasonal_rates')
+    .select('*, room_types(id, name)')
+    .order('start_date', { ascending: true })
+  if (error) throw error
+  return (data as unknown as SeasonalRateWithType[]) ?? []
 }
 
 function errorCode(error: unknown): string | undefined {
@@ -59,6 +76,10 @@ export function RoomsPage() {
     queryFn: fetchRoomTypes,
   })
   const { data: rooms, isLoading: loadingRooms } = useQuery({ queryKey: ['rooms'], queryFn: fetchRooms })
+  const { data: seasonalRates, isLoading: loadingSeasonalRates } = useQuery({
+    queryKey: ['seasonal-rates'],
+    queryFn: fetchSeasonalRates,
+  })
 
   const deleteRoomType = useMutation({
     mutationFn: async (id: string) => {
@@ -94,6 +115,18 @@ export function RoomsPage() {
           : 'Não foi possível excluir o quarto.'
       )
     },
+  })
+
+  const deleteSeasonalRate = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('seasonal_rates').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['seasonal-rates'] })
+      toast.success('Tarifa sazonal excluída.')
+    },
+    onError: () => toast.error('Não foi possível excluir a tarifa sazonal.'),
   })
 
   return (
@@ -235,6 +268,73 @@ export function RoomsPage() {
           )}
           {rooms && rooms.length === 0 && (
             <p className="text-sm text-muted-foreground">Nenhum quarto cadastrado.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Tarifas sazonais</CardTitle>
+            <CardDescription>
+              Diárias diferentes por período (ex.: alta temporada, feriados), por tipo de quarto. Quando o período de
+              uma reserva cai dentro de um intervalo cadastrado aqui, a diária sugerida na tela Reservas usa esse
+              valor em vez do preço base do tipo de quarto.
+            </CardDescription>
+          </div>
+          {isAdmin && <SeasonalRateDialog roomTypes={roomTypes ?? []} />}
+        </CardHeader>
+        <CardContent>
+          {loadingSeasonalRates && <p className="text-sm text-muted-foreground">Carregando...</p>}
+          {!loadingTypes && (roomTypes ?? []).length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Cadastre pelo menos um tipo de quarto antes de adicionar tarifas sazonais.
+            </p>
+          )}
+          {seasonalRates && seasonalRates.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Tipo de quarto</TableHead>
+                  <TableHead>Período</TableHead>
+                  <TableHead>Diária</TableHead>
+                  {isAdmin && <TableHead className="text-right">Ações</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {seasonalRates.map((rate) => (
+                  <TableRow key={rate.id}>
+                    <TableCell>{rate.label}</TableCell>
+                    <TableCell>{rate.room_types?.name ?? '—'}</TableCell>
+                    <TableCell>
+                      {new Date(`${rate.start_date}T00:00:00`).toLocaleDateString('pt-BR')} –{' '}
+                      {new Date(`${rate.end_date}T00:00:00`).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell>{formatCurrency(rate.daily_rate)}</TableCell>
+                    {isAdmin && (
+                      <TableCell className="space-x-2 text-right">
+                        <SeasonalRateDialog seasonalRate={rate} roomTypes={roomTypes ?? []} />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (window.confirm(`Excluir a tarifa "${rate.label}"?`)) {
+                              deleteSeasonalRate.mutate(rate.id)
+                            }
+                          }}
+                        >
+                          Excluir
+                        </Button>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {seasonalRates && seasonalRates.length === 0 && (roomTypes ?? []).length > 0 && (
+            <p className="text-sm text-muted-foreground">Nenhuma tarifa sazonal cadastrada.</p>
           )}
         </CardContent>
       </Card>
@@ -469,6 +569,139 @@ function RoomDialog({ room, roomTypes }: { room?: RoomWithType; roomTypes: RoomT
           <DialogFooter>
             <Button type="submit" disabled={saveRoom.isPending}>
               {saveRoom.isPending ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function SeasonalRateDialog({
+  seasonalRate,
+  roomTypes,
+}: {
+  seasonalRate?: SeasonalRateWithType
+  roomTypes: RoomType[]
+}) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = React.useState(false)
+  const isEdit = !!seasonalRate
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    formState: { errors },
+  } = useForm<SeasonalRateInput>({
+    resolver: zodResolver(seasonalRateSchema),
+    defaultValues: seasonalRate
+      ? {
+          room_type_id: seasonalRate.room_type_id,
+          label: seasonalRate.label,
+          start_date: seasonalRate.start_date,
+          end_date: seasonalRate.end_date,
+          daily_rate: seasonalRate.daily_rate,
+        }
+      : { room_type_id: '', label: '', start_date: '', end_date: '', daily_rate: 0 },
+  })
+
+  const saveSeasonalRate = useMutation({
+    mutationFn: async (values: SeasonalRateInput) => {
+      const payload = {
+        room_type_id: values.room_type_id,
+        label: values.label,
+        start_date: values.start_date,
+        end_date: values.end_date,
+        daily_rate: values.daily_rate,
+      }
+      const { error } = isEdit
+        ? await supabase.from('seasonal_rates').update(payload).eq('id', seasonalRate.id)
+        : await supabase.from('seasonal_rates').insert(payload)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['seasonal-rates'] })
+      toast.success(isEdit ? 'Tarifa sazonal atualizada.' : 'Tarifa sazonal criada.')
+      reset()
+      setOpen(false)
+    },
+    onError: (error) => {
+      toast.error(
+        errorCode(error) === '23P01'
+          ? 'Esse período se sobrepõe a outra tarifa já cadastrada para esse tipo de quarto.'
+          : 'Não foi possível salvar a tarifa sazonal.'
+      )
+    },
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant={isEdit ? 'outline' : 'default'}
+          size={isEdit ? 'sm' : 'default'}
+          disabled={!isEdit && roomTypes.length === 0}
+        >
+          {isEdit ? 'Editar' : 'Nova tarifa'}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{isEdit ? 'Editar tarifa sazonal' : 'Nova tarifa sazonal'}</DialogTitle>
+          <DialogDescription>
+            Diária diferente do preço base, válida num intervalo de datas, pra um tipo de quarto.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit((values) => saveSeasonalRate.mutate(values))} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="label">Nome</Label>
+            <Input id="label" placeholder="Ex.: Alta temporada, Réveillon" {...register('label')} />
+            {errors.label && <p className="text-sm text-destructive">{errors.label.message}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label>Tipo de quarto</Label>
+            <Controller
+              control={control}
+              name="room_type_id"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roomTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {errors.room_type_id && <p className="text-sm text-destructive">{errors.room_type_id.message}</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="start_date">Início</Label>
+              <Input id="start_date" type="date" {...register('start_date')} />
+              {errors.start_date && <p className="text-sm text-destructive">{errors.start_date.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="end_date">Fim</Label>
+              <Input id="end_date" type="date" {...register('end_date')} />
+              {errors.end_date && <p className="text-sm text-destructive">{errors.end_date.message}</p>}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="seasonal_daily_rate">Diária nesse período (R$)</Label>
+            <Input id="seasonal_daily_rate" type="number" step="0.01" min={0.01} {...register('daily_rate')} />
+            {errors.daily_rate && <p className="text-sm text-destructive">{errors.daily_rate.message}</p>}
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={saveSeasonalRate.isPending}>
+              {saveSeasonalRate.isPending ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>
         </form>

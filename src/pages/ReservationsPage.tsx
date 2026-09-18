@@ -76,6 +76,34 @@ async function fetchRoomsForSelect(): Promise<RoomOption[]> {
   return (data as unknown as RoomOption[]) ?? []
 }
 
+/** Tarifa sazonal (se houver) do tipo de quarto que cobre a data informada — no máximo uma, garantido pelo banco. */
+async function fetchSeasonalRate(roomTypeId: string, date: string): Promise<number | null> {
+  const { data, error } = await supabase
+    .from('seasonal_rates')
+    .select('daily_rate')
+    .eq('room_type_id', roomTypeId)
+    .lte('start_date', date)
+    .gte('end_date', date)
+    .maybeSingle()
+  if (error) throw error
+  return data ? Number(data.daily_rate) : null
+}
+
+/** Tarifas sazonais (se houver) de vários tipos de quarto que cobrem a data informada, uma por tipo. */
+async function fetchSeasonalRatesForDate(roomTypeIds: string[], date: string): Promise<Map<string, number>> {
+  if (roomTypeIds.length === 0) return new Map()
+  const { data, error } = await supabase
+    .from('seasonal_rates')
+    .select('room_type_id, daily_rate')
+    .in('room_type_id', roomTypeIds)
+    .lte('start_date', date)
+    .gte('end_date', date)
+  if (error) throw error
+  const map = new Map<string, number>()
+  for (const row of data ?? []) map.set(row.room_type_id, Number(row.daily_rate))
+  return map
+}
+
 /** IDs de quartos com alguma reserva ativa cujo período cruza com [checkIn, checkOut). */
 async function fetchOverlappingRoomIds(checkIn: string, checkOut: string): Promise<Set<string>> {
   const { data, error } = await supabase
@@ -485,6 +513,7 @@ function ReservationDialog({
     control,
     reset,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<ReservationInput>({
     resolver: zodResolver(reservationSchema),
@@ -618,6 +647,13 @@ function ReservationDialog({
                     const room = rooms.find((r) => r.id === value)
                     if (room?.room_types) {
                       setValue('daily_rate', room.room_types.base_price)
+                      const checkIn = getValues('check_in')
+                      const roomTypeId = room.room_types.id
+                      if (checkIn) {
+                        fetchSeasonalRate(roomTypeId, checkIn).then((rate) => {
+                          if (rate !== null) setValue('daily_rate', rate)
+                        })
+                      }
                     }
                   }}
                 >
@@ -640,7 +676,21 @@ function ReservationDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="check_in">Check-in</Label>
-              <Input id="check_in" type="date" {...register('check_in')} />
+              <Input
+                id="check_in"
+                type="date"
+                {...register('check_in', {
+                  onChange: (e) => {
+                    const checkIn = e.target.value as string
+                    const room = rooms.find((r) => r.id === getValues('room_id'))
+                    if (room?.room_types && checkIn) {
+                      fetchSeasonalRate(room.room_types.id, checkIn).then((rate) => {
+                        setValue('daily_rate', rate ?? room.room_types!.base_price)
+                      })
+                    }
+                  },
+                })}
+              />
               {errors.check_in && <p className="text-sm text-destructive">{errors.check_in.message}</p>}
             </div>
             <div className="space-y-2">
@@ -667,6 +717,10 @@ function ReservationDialog({
               {errors.daily_rate && <p className="text-sm text-destructive">{errors.daily_rate.message}</p>}
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            A diária é preenchida com a tarifa sazonal do período, se houver uma cadastrada em Quartos, ou o preço
+            base do tipo de quarto — pode ser ajustada aqui.
+          </p>
 
           {isEdit && (
             <div className="space-y-2">
@@ -773,8 +827,18 @@ function GroupReservationDialog({
 
   const createGroup = useMutation({
     mutationFn: async (values: GroupReservationInput) => {
+      const roomTypeIds = Array.from(
+        new Set(
+          Array.from(selectedRooms.keys())
+            .map((roomId) => rooms.find((r) => r.id === roomId)?.room_types?.id)
+            .filter((id): id is string => !!id)
+        )
+      )
+      const seasonalRates = await fetchSeasonalRatesForDate(roomTypeIds, values.check_in)
       const rows = Array.from(selectedRooms.entries()).map(([roomId, occupantName]) => {
         const room = rooms.find((r) => r.id === roomId)
+        const roomTypeId = room?.room_types?.id
+        const rate = (roomTypeId ? seasonalRates.get(roomTypeId) : undefined) ?? room?.room_types?.base_price ?? 0
         return {
           guest_id: values.guest_id,
           room_id: roomId,
@@ -782,7 +846,7 @@ function GroupReservationDialog({
           check_out: values.check_out,
           adults: 1,
           children: 0,
-          daily_rate: room?.room_types?.base_price ?? 0,
+          daily_rate: rate,
           status: 'confirmada' as const,
           occupant_name: occupantName.trim() || null,
         }
@@ -880,6 +944,10 @@ function GroupReservationDialog({
 
           <div className="space-y-2">
             <Label>Quartos</Label>
+            <p className="text-xs text-muted-foreground">
+              A diária de cada quarto usa a tarifa sazonal do período, se houver uma cadastrada em Quartos, ou o
+              preço base do tipo.
+            </p>
             {!periodReady && (
               <p className="text-sm text-muted-foreground">Informe check-in e check-out pra ver os quartos livres.</p>
             )}
