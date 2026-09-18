@@ -31,6 +31,44 @@ import { nightsBetween, type ReservationWithRelations } from '@/types/reservatio
 
 const PAGE_ROLES: Role[] = ['admin', 'gerente', 'recepcao', 'financeiro']
 
+type PeriodMode = 'tudo' | 'mes_atual' | 'mes_anterior' | 'personalizado'
+
+const PERIOD_MODE_LABELS: Record<PeriodMode, string> = {
+  tudo: 'Tudo (sem filtro)',
+  mes_atual: 'Este mês',
+  mes_anterior: 'Mês passado',
+  personalizado: 'Personalizado',
+}
+
+function toIsoDate(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
+
+/** Intervalo [início, fim] (datas ISO, inclusive) pro filtro de período. null/null = sem filtro. */
+function getPeriodRange(
+  mode: PeriodMode,
+  customStart: string,
+  customEnd: string
+): { start: string | null; end: string | null } {
+  const now = new Date()
+  if (mode === 'mes_atual') {
+    return {
+      start: toIsoDate(new Date(now.getFullYear(), now.getMonth(), 1)),
+      end: toIsoDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+    }
+  }
+  if (mode === 'mes_anterior') {
+    return {
+      start: toIsoDate(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+      end: toIsoDate(new Date(now.getFullYear(), now.getMonth(), 0)),
+    }
+  }
+  if (mode === 'personalizado') {
+    return { start: customStart || null, end: customEnd || null }
+  }
+  return { start: null, end: null }
+}
+
 async function fetchBillableReservations(): Promise<ReservationWithRelations[]> {
   const { data, error } = await supabase
     .from('reservations')
@@ -64,6 +102,14 @@ export function FinanceiroPage() {
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
 
+  const [periodMode, setPeriodMode] = React.useState<PeriodMode>('tudo')
+  const [customStart, setCustomStart] = React.useState('')
+  const [customEnd, setCustomEnd] = React.useState('')
+  const period = React.useMemo(
+    () => getPeriodRange(periodMode, customStart, customEnd),
+    [periodMode, customStart, customEnd]
+  )
+
   const { data: reservations, isLoading: loadingReservations } = useQuery({
     queryKey: ['billing-reservations'],
     queryFn: fetchBillableReservations,
@@ -83,14 +129,20 @@ export function FinanceiroPage() {
   }, [payments])
 
   const billing = React.useMemo(() => {
-    return (reservations ?? []).map((reservation) => {
-      const nights = nightsBetween(reservation.check_in, reservation.check_out)
-      const total = reservation.daily_rate * nights
-      const paid = paidByReservation.get(reservation.id) ?? 0
-      const balance = total - paid
-      return { reservation, total, paid, balance }
-    })
-  }, [reservations, paidByReservation])
+    return (reservations ?? [])
+      .filter((reservation) => {
+        if (period.start && reservation.check_in < period.start) return false
+        if (period.end && reservation.check_in > period.end) return false
+        return true
+      })
+      .map((reservation) => {
+        const nights = nightsBetween(reservation.check_in, reservation.check_out)
+        const total = reservation.daily_rate * nights
+        const paid = paidByReservation.get(reservation.id) ?? 0
+        const balance = total - paid
+        return { reservation, total, paid, balance }
+      })
+  }, [reservations, paidByReservation, period])
 
   const summary = React.useMemo(() => {
     const faturado = billing.reduce((sum, b) => sum + b.total, 0)
@@ -127,6 +179,28 @@ export function FinanceiroPage() {
         <p className="text-sm text-muted-foreground">Faturamento das reservas e pagamentos recebidos.</p>
       </div>
 
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Select value={periodMode} onValueChange={(value) => setPeriodMode(value as PeriodMode)}>
+          <SelectTrigger className="sm:max-w-[220px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(PERIOD_MODE_LABELS) as PeriodMode[]).map((mode) => (
+              <SelectItem key={mode} value={mode}>
+                {PERIOD_MODE_LABELS[mode]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {periodMode === 'personalizado' && (
+          <div className="flex items-center gap-2">
+            <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} />
+            <span className="text-sm text-muted-foreground">até</span>
+            <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} />
+          </div>
+        )}
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="space-y-0 pb-2">
@@ -159,15 +233,18 @@ export function FinanceiroPage() {
             <CardHeader>
               <CardTitle>Faturamento por reserva</CardTitle>
               <CardDescription>
-                Reservas não canceladas, com total (diária × noites), valor já pago e saldo pendente. Não considera
-                período — é o total desde o início do sistema.
+                Reservas não canceladas com check-in no período selecionado ({PERIOD_MODE_LABELS[periodMode]}), com
+                total (diária × noites), valor já pago (em qualquer data) e saldo pendente.
               </CardDescription>
             </CardHeader>
             <CardContent>
               {loadingReservations && <p className="text-sm text-muted-foreground">Carregando...</p>}
 
-              {!loadingReservations && billing.length === 0 && (
+              {!loadingReservations && (reservations ?? []).length === 0 && (
                 <p className="text-sm text-muted-foreground">Nenhuma reserva faturável ainda.</p>
+              )}
+              {!loadingReservations && (reservations ?? []).length > 0 && billing.length === 0 && (
+                <p className="text-sm text-muted-foreground">Nenhuma reserva com check-in nesse período.</p>
               )}
 
               {billing.length > 0 && (
@@ -222,7 +299,8 @@ export function FinanceiroPage() {
             <CardHeader>
               <CardTitle>Pagamentos recebidos</CardTitle>
               <CardDescription>
-                Histórico de todos os pagamentos registrados, mais recentes primeiro.
+                Histórico de todos os pagamentos registrados, mais recentes primeiro — não é afetado pelo filtro de
+                período acima.
                 {isAdmin && ' Pagamentos lançados errado podem ser editados ou excluídos aqui.'}
               </CardDescription>
             </CardHeader>

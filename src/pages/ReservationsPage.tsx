@@ -29,6 +29,7 @@ import { reservationSchema, type ReservationInput } from '@/lib/validations'
 import type { Role } from '@/types/auth'
 import type { Guest } from '@/types/guest'
 import {
+  RESERVATION_STATUSES,
   RESERVATION_STATUS_LABELS,
   nightsBetween,
   type ReservationStatus,
@@ -99,6 +100,9 @@ export function ReservationsPage() {
   const isStaff = !!profile && STAFF_ROLES.includes(profile.role)
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
+
+  const [search, setSearch] = React.useState('')
+  const [statusFilter, setStatusFilter] = React.useState<ReservationStatus | 'todas'>('todas')
 
   const { data: reservations, isLoading } = useQuery({
     queryKey: ['reservations'],
@@ -176,6 +180,15 @@ export function ReservationsPage() {
     onError: () => toast.error('Não foi possível atualizar a nota fiscal.'),
   })
 
+  const filteredReservations = React.useMemo(() => {
+    const term = search.trim().toLowerCase()
+    return (reservations ?? []).filter((reservation) => {
+      const statusMatch = statusFilter === 'todas' || reservation.status === statusFilter
+      const nameMatch = !term || (reservation.guests?.full_name ?? '').toLowerCase().includes(term)
+      return statusMatch && nameMatch
+    })
+  }, [reservations, search, statusFilter])
+
   const finalizedReservations = React.useMemo(() => {
     return (reservations ?? [])
       .filter((r) => r.status === 'finalizada')
@@ -217,10 +230,34 @@ export function ReservationsPage() {
           </div>
           {isStaff && <ReservationDialog guests={guests ?? []} rooms={rooms ?? []} />}
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {reservations && reservations.length > 0 && (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Input
+                placeholder="Buscar por nome do hóspede..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="sm:max-w-xs"
+              />
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ReservationStatus | 'todas')}>
+                <SelectTrigger className="sm:max-w-[200px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todos os status</SelectItem>
+                  {RESERVATION_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {RESERVATION_STATUS_LABELS[status]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {isLoading && <p className="text-sm text-muted-foreground">Carregando...</p>}
 
-          {reservations && reservations.length > 0 && (
+          {filteredReservations.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -234,7 +271,7 @@ export function ReservationsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {reservations.map((reservation) => {
+                {filteredReservations.map((reservation) => {
                   const nights = nightsBetween(reservation.check_in, reservation.check_out)
                   return (
                     <TableRow key={reservation.id}>
@@ -315,6 +352,9 @@ export function ReservationsPage() {
 
           {!isLoading && reservations && reservations.length === 0 && (
             <p className="text-sm text-muted-foreground">Nenhuma reserva cadastrada.</p>
+          )}
+          {!isLoading && reservations && reservations.length > 0 && filteredReservations.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhuma reserva encontrada com esses filtros.</p>
           )}
         </CardContent>
       </Card>
