@@ -34,6 +34,11 @@ export function AppLayout() {
               Manutenção
             </Link>
           )}
+          {profile && ['admin', 'gerente', 'recepcao', 'financeiro'].includes(profile.role) && (
+            <Link to="/financeiro" className="text-muted-foreground hover:text-foreground">
+              Financeiro
+            </Link>
+          )}
           <Link to="/hotel" className="text-muted-foreground hover:text-foreground">
             Configurações
           </Link>

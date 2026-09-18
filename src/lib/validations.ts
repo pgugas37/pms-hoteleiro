@@ -6,6 +6,7 @@ import { ROLES } from '@/types/auth'
 import { ROOM_STATUSES } from '@/types/room'
 import { DOCUMENT_TYPES } from '@/types/guest'
 import { RESERVATION_STATUSES } from '@/types/reservation'
+import { PAYMENT_METHODS } from '@/types/payment'
 
 export const loginSchema = z.object({
   email: z.string().min(1, 'Informe o e-mail.').email('E-mail inválido.'),
@@ -114,3 +115,10 @@ export const maintenanceRequestSchema = z.object({
   description: z.string().min(3, 'Descreva o problema.'),
 })
 export type MaintenanceRequestInput = z.infer<typeof maintenanceRequestSchema>
+
+export const paymentSchema = z.object({
+  amount: z.coerce.number().positive('O valor precisa ser maior que zero.'),
+  method: z.enum(PAYMENT_METHODS, { errorMap: () => ({ message: 'Selecione a forma de pagamento.' }) }),
+  notes: z.string().optional(),
+})
+export type PaymentInput = z.infer<typeof paymentSchema>

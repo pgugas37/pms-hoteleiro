@@ -6,6 +6,7 @@ import { RequireRole } from '@/components/RequireRole'
 import { AcessoNegadoPage } from '@/pages/AcessoNegadoPage'
 import { ConfiguracaoInicialPage } from '@/pages/ConfiguracaoInicialPage'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { FinanceiroPage } from '@/pages/FinanceiroPage'
 import { GovernancaPage } from '@/pages/GovernancaPage'
 import { GuestsPage } from '@/pages/GuestsPage'
 import { HotelSettingsPage } from '@/pages/HotelSettingsPage'
@@ -42,6 +43,10 @@ export const router = createBrowserRouter([
           {
             element: <RequireRole roles={['admin', 'gerente', 'recepcao', 'governanca', 'manutencao']} />,
             children: [{ path: '/manutencao', element: <MaintenancePage /> }],
+          },
+          {
+            element: <RequireRole roles={['admin', 'gerente', 'recepcao', 'financeiro']} />,
+            children: [{ path: '/financeiro', element: <FinanceiroPage /> }],
           },
           {
             element: <RequireRole roles={['admin']} />,

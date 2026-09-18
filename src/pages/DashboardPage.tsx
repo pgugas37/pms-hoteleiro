@@ -4,9 +4,13 @@ import { Link } from 'react-router-dom'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/lib/auth-context'
+import { formatCurrency } from '@/lib/format'
 import { fetchHotel } from '@/lib/hotel'
 import { supabase } from '@/lib/supabase'
 import { ROLES, ROLE_LABELS, type Role } from '@/types/auth'
+import { nightsBetween } from '@/types/reservation'
+
+const FINANCE_ROLES: Role[] = ['admin', 'gerente', 'financeiro']
 
 interface AuditEntry {
   id: number
@@ -40,6 +44,19 @@ async function fetchRoomStats(): Promise<{ status: string }[]> {
   return (data ?? []) as { status: string }[]
 }
 
+async function fetchRevenueStats(): Promise<{
+  reservations: { daily_rate: number; check_in: string; check_out: string }[]
+  payments: { amount: number }[]
+}> {
+  const [reservationsRes, paymentsRes] = await Promise.all([
+    supabase.from('reservations').select('daily_rate, check_in, check_out').neq('status', 'cancelada'),
+    supabase.from('payments').select('amount'),
+  ])
+  if (reservationsRes.error) throw reservationsRes.error
+  if (paymentsRes.error) throw paymentsRes.error
+  return { reservations: reservationsRes.data ?? [], payments: paymentsRes.data ?? [] }
+}
+
 async function fetchAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await supabase
     .from('audit_log')
@@ -60,6 +77,7 @@ async function fetchActorNames(actorIds: string[]): Promise<Record<string, strin
 export function DashboardPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
+  const canSeeFinance = !!profile && FINANCE_ROLES.includes(profile.role)
 
   const { data: hotel } = useQuery({ queryKey: ['hotel'], queryFn: fetchHotel })
 
@@ -72,6 +90,12 @@ export function DashboardPage() {
   const { data: roomStats } = useQuery({
     queryKey: ['dashboard-room-stats'],
     queryFn: fetchRoomStats,
+  })
+
+  const { data: revenueStats } = useQuery({
+    queryKey: ['dashboard-revenue'],
+    queryFn: fetchRevenueStats,
+    enabled: canSeeFinance,
   })
 
   const { data: auditLog } = useQuery({
@@ -116,6 +140,15 @@ export function DashboardPage() {
     const rate = total > 0 ? Math.round((occupied / total) * 100) : 0
     return { total, occupied, available, cleaning, maintenance, rate }
   }, [roomStats])
+
+  const revenue = React.useMemo(() => {
+    const faturado = (revenueStats?.reservations ?? []).reduce(
+      (sum, r) => sum + r.daily_rate * nightsBetween(r.check_in, r.check_out),
+      0
+    )
+    const recebido = (revenueStats?.payments ?? []).reduce((sum, p) => sum + Number(p.amount), 0)
+    return { faturado, recebido, pendente: faturado - recebido }
+  }, [revenueStats])
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
@@ -227,12 +260,31 @@ export function DashboardPage() {
         </div>
       )}
 
-      <Card className="border-dashed">
-        <CardContent className="pt-6 text-sm text-muted-foreground">
-          Indicadores financeiros (receita, diárias) vão aparecer aqui quando o módulo de Financeiro for
-          implementado.
-        </CardContent>
-      </Card>
+      {canSeeFinance && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Financeiro</CardTitle>
+            <CardDescription>Faturado, recebido e pendente (total desde o início do sistema)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Faturado</span>
+              <span>{formatCurrency(revenue.faturado)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Recebido</span>
+              <span>{formatCurrency(revenue.recebido)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Pendente</span>
+              <span>{formatCurrency(revenue.pendente)}</span>
+            </div>
+            <Link to="/financeiro" className="mt-2 inline-block text-sm text-primary underline-offset-4 hover:underline">
+              Ver financeiro
+            </Link>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
