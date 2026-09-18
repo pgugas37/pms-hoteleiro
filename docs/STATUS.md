@@ -72,16 +72,16 @@ Concluído e validado. Substitui a página inicial (`/`) — antes só confirmav
 
 Testado rodando local: painel exibindo os dados reais do hotel (MILLENIUM HOTEL), contagem de usuários e a atividade recente (criação do admin).
 
-## Módulo 05 — Quartos
+## Módulo 05 — Quartos ✅
 
-Especificado e implementado. Duas tabelas novas no Supabase (migration `0009_module05_rooms`), com RLS igual ao padrão do Módulo 03 (todo autenticado lê, só admin cria/edita/exclui):
+Concluído e validado. Duas tabelas novas no Supabase (migration `0009_module05_rooms`), com RLS igual ao padrão do Módulo 03 (todo autenticado lê, só admin cria/edita/exclui):
 
 - `room_types` — tipos de quarto (nome, descrição, capacidade de adultos/crianças, preço base da diária).
 - `rooms` — unidades físicas (número único, vínculo com o tipo, andar, status operacional: disponível/manutenção/inativo, observações). `room_type_id` referencia `room_types` com `on delete restrict`, então não é possível excluir um tipo com quartos vinculados (a tela trata esse erro com uma mensagem amigável).
 
 **Frontend:** página `/quartos` (link "Quartos" no menu), com duas seções — "Tipos de quarto" e "Quartos" — cada uma com tabela de listagem e cadastro/edição via modal. Só admin vê os botões de ações; os demais papéis só visualizam.
 
-Falta validar rodando localmente.
+Testado rodando local: cadastro de tipo de quarto, cadastro de quarto vinculado ao tipo, edição e exclusão funcionando.
 
 ## Código do frontend
 
@@ -112,6 +112,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 4. ~~Criar o primeiro Administrador via `/configuracao-inicial`.~~ **Concluído (pgugas37@gmail.com).**
 5. ~~Especificar e implementar o Módulo 03 (Configurações do hotel).~~ **Concluído e validado.**
 6. ~~Especificar e implementar o Módulo 04 (Dashboard).~~ **Concluído e validado.**
-7. ~~Especificar e implementar o Módulo 05 (Quartos).~~ **Implementado — falta validar rodando localmente (`pnpm dev`, acessar `/quartos`).**
-8. Módulo 06 — Hóspedes (próximo, combinado com o Gustavo).
+7. ~~Especificar e implementar o Módulo 05 (Quartos).~~ **Concluído e validado.**
+8. Módulo 06 — Hóspedes (próximo).
 9. Módulo 07 — Reservas.
