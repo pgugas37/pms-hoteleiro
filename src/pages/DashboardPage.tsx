@@ -14,18 +14,35 @@ import { nightsBetween, type ReservationStatus } from '@/types/reservation'
 
 const FINANCE_ROLES: Role[] = ['admin', 'gerente', 'financeiro']
 const TODAY_PANEL_ROLES: Role[] = ['admin', 'gerente', 'recepcao']
+const REMINDER_WINDOW_DAYS = 7
 
 interface TodayReservation {
   id: string
+  guest_id: string
   check_in: string
   check_out: string
   status: ReservationStatus
-  guests: { full_name: string } | null
+  guests: { full_name: string; birth_date: string | null } | null
   rooms: { number: string } | null
 }
 
 function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10)
+}
+
+function addDaysToDate(date: Date, amount: number): Date {
+  const result = new Date(date)
+  result.setDate(result.getDate() + amount)
+  return result
+}
+
+/** Quantos dias faltam pro próximo aniversário (0 = hoje), comparando só mês/dia, ignorando o ano de nascimento. */
+function daysUntilNextBirthday(birthDateIso: string, from: Date): number {
+  const birth = new Date(`${birthDateIso}T00:00:00`)
+  const fromMidnight = new Date(from.getFullYear(), from.getMonth(), from.getDate())
+  let next = new Date(fromMidnight.getFullYear(), birth.getMonth(), birth.getDate())
+  if (next < fromMidnight) next = new Date(fromMidnight.getFullYear() + 1, birth.getMonth(), birth.getDate())
+  return Math.round((next.getTime() - fromMidnight.getTime()) / (1000 * 60 * 60 * 24))
 }
 
 interface AuditEntry {
@@ -65,7 +82,7 @@ async function fetchRevenueStats(): Promise<{
 async function fetchTodayReservations(): Promise<TodayReservation[]> {
   const { data, error } = await supabase
     .from('reservations')
-    .select('id, check_in, check_out, status, guests(full_name), rooms(number)')
+    .select('id, guest_id, check_in, check_out, status, guests(full_name, birth_date), rooms(number)')
     .in('status', ['confirmada', 'em_andamento'])
     .order('check_in', { ascending: true })
   if (error) throw error
@@ -175,6 +192,38 @@ export function DashboardPage() {
     }
   }, [todayReservations])
 
+  const reminders = React.useMemo(() => {
+    const reservations = todayReservations ?? []
+    const now = new Date()
+    const todayStr = toIsoDate(now)
+    const tomorrowStr = toIsoDate(addDaysToDate(now, 1))
+    const windowEndStr = toIsoDate(addDaysToDate(now, REMINDER_WINDOW_DAYS))
+
+    const tomorrowArrivals = reservations.filter((r) => r.status === 'confirmada' && r.check_in === tomorrowStr)
+
+    // Hóspedes hospedados agora ou que chegam nos próximos dias — só esses fazem sentido pra parabenizar.
+    const hostedSoon = reservations.filter(
+      (r) =>
+        r.status === 'em_andamento' ||
+        (r.status === 'confirmada' && r.check_in >= todayStr && r.check_in <= windowEndStr)
+    )
+
+    const seenGuests = new Set<string>()
+    const birthdays: { guestId: string; name: string; daysUntil: number }[] = []
+    for (const r of hostedSoon) {
+      const birthDate = r.guests?.birth_date
+      if (!birthDate || seenGuests.has(r.guest_id)) continue
+      seenGuests.add(r.guest_id)
+      const daysUntil = daysUntilNextBirthday(birthDate, now)
+      if (daysUntil <= REMINDER_WINDOW_DAYS) {
+        birthdays.push({ guestId: r.guest_id, name: r.guests?.full_name ?? '—', daysUntil })
+      }
+    }
+    birthdays.sort((a, b) => a.daysUntil - b.daysUntil)
+
+    return { tomorrowArrivals, birthdays }
+  }, [todayReservations])
+
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
       <div>
@@ -265,6 +314,55 @@ export function DashboardPage() {
             </CardContent>
           </Card>
         )}
+
+      {canSeeTodayPanel && (reminders.tomorrowArrivals.length > 0 || reminders.birthdays.length > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Próximos dias</CardTitle>
+            <CardDescription>
+              Chegadas de amanhã e aniversários de hóspedes nos próximos {REMINDER_WINDOW_DAYS} dias.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {reminders.tomorrowArrivals.length > 0 && (
+              <div>
+                <div className="mb-1 flex items-center gap-2">
+                  <span className="text-sm font-medium">Chegadas de amanhã</span>
+                  <Badge variant="outline">{reminders.tomorrowArrivals.length}</Badge>
+                </div>
+                <ul className="space-y-1">
+                  {reminders.tomorrowArrivals.map((r) => (
+                    <li key={r.id} className="text-sm text-muted-foreground">
+                      {r.guests?.full_name ?? '—'} — quarto {r.rooms?.number ?? '—'}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {reminders.birthdays.length > 0 && (
+              <div>
+                <div className="mb-1 flex items-center gap-2">
+                  <span className="text-sm font-medium">Aniversários</span>
+                  <Badge variant="outline">{reminders.birthdays.length}</Badge>
+                </div>
+                <ul className="space-y-1">
+                  {reminders.birthdays.map((b) => (
+                    <li key={b.guestId} className="text-sm text-muted-foreground">
+                      {b.name} —{' '}
+                      {b.daysUntil === 0 ? 'hoje' : b.daysUntil === 1 ? 'amanhã' : `em ${b.daysUntil} dias`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <Link to="/reservas" className="mt-2 inline-block text-sm text-primary underline-offset-4 hover:underline">
+              Ver reservas
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       {occupancy.total > 0 && (
         <Card>
