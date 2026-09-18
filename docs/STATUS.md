@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 18)_
+_Última atualização: 18/09/2026 (Módulo 19)_
 
 ## Contexto
 
@@ -257,6 +257,17 @@ Testado rodando local: reserva em grupo com 2-3 quartos pro mesmo hóspede, nome
 
 **Ajuste de tooling (fora dos módulos):** o pnpm criou automaticamente uma entrada `core-js: set this to true or false` em `pnpm-workspace.yaml` (mecanismo de aprovação de scripts de instalação, mesmo aviso `ERR_PNPM_IGNORED_BUILDS` do Módulo 16) — definido como `false` (o script do `core-js` só imprime um aviso, não afeta o `jspdf`).
 
+## Módulo 19 — Mapa de ocupação ✅
+
+Concluído e validado. Puramente frontend — sem migration no banco. Fica bem mais útil agora que o hotel tem os 49 quartos reais cadastrados (Módulo 18).
+
+- Tela nova `/mapa` (link "Mapa" no menu, sem restrição de papel — leitura liberada como Reservas/Quartos/Hóspedes): grade com os quartos nas linhas e os próximos 14 dias nas colunas.
+- Cada célula é colorida conforme a reserva daquele quarto naquele dia: azul (confirmada), vermelho (em andamento/ocupado) ou vazia (livre). Passar o mouse mostra o hóspede/ocupante e o período (tooltip nativo do navegador).
+- Botões pra navegar 14 dias pra frente/trás e voltar pra "Hoje".
+- **Limitação conhecida (documentada na própria tela):** o mapa reflete só reservas — não mostra quartos em limpeza ou manutenção nos dias futuros, porque isso é o status atual do quarto (um valor só, sem histórico por data), não uma previsão dia a dia. Pra isso, a tela Quartos continua sendo a fonte da verdade.
+
+Testado rodando local: os 49 quartos aparecem na grade, reservas (inclusive as criadas em grupo no Módulo 18) aparecem na cor e nas datas certas, navegação entre períodos funcionando.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -300,5 +311,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 18. ~~Especificar e implementar o Módulo 16 (Recibo de pagamento em PDF).~~ **Concluído e validado.**
 19. ~~Especificar e implementar o Módulo 17 (Observações internas por quarto/hóspede).~~ **Concluído e validado.**
 20. ~~Especificar e implementar o Módulo 18 (Reserva em grupo e nome do ocupante).~~ **Concluído e validado.**
+21. ~~Especificar e implementar o Módulo 19 (Mapa de ocupação).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, e o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto. O hotel também já tem os 49 quartos cadastrados (48 deles como placeholder, aguardando o Gustavo ajustar número/tipo/andar reais). A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto, e o Módulo 19 deu uma visão visual da ocupação dos 49 quartos ao longo dos próximos dias. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
