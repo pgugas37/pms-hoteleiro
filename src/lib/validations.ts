@@ -5,6 +5,7 @@ import { BRAZIL_STATES } from '@/types/hotel'
 import { ROLES } from '@/types/auth'
 import { ROOM_STATUSES } from '@/types/room'
 import { DOCUMENT_TYPES } from '@/types/guest'
+import { RESERVATION_STATUSES } from '@/types/reservation'
 
 export const loginSchema = z.object({
   email: z.string().min(1, 'Informe o e-mail.').email('E-mail inválido.'),
@@ -89,3 +90,21 @@ export const guestSchema = z
     { message: 'Documento inválido para o tipo selecionado.', path: ['document_number'] }
   )
 export type GuestInput = z.infer<typeof guestSchema>
+
+export const reservationSchema = z
+  .object({
+    guest_id: z.string().min(1, 'Selecione o hóspede.'),
+    room_id: z.string().min(1, 'Selecione o quarto.'),
+    check_in: z.string().min(1, 'Informe a data de entrada.'),
+    check_out: z.string().min(1, 'Informe a data de saída.'),
+    adults: z.coerce.number().int().min(1, 'Mínimo de 1 adulto.'),
+    children: z.coerce.number().int().min(0, 'Não pode ser negativo.'),
+    daily_rate: z.coerce.number().min(0, 'A diária não pode ser negativa.'),
+    status: z.enum(RESERVATION_STATUSES, { errorMap: () => ({ message: 'Selecione o status.' }) }),
+    notes: z.string().optional(),
+  })
+  .refine((data) => new Date(data.check_out) > new Date(data.check_in), {
+    message: 'A data de saída precisa ser depois da entrada.',
+    path: ['check_out'],
+  })
+export type ReservationInput = z.infer<typeof reservationSchema>

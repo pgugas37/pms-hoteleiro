@@ -21,6 +21,9 @@ export function AppLayout() {
           <Link to="/hospedes" className="text-muted-foreground hover:text-foreground">
             Hóspedes
           </Link>
+          <Link to="/reservas" className="text-muted-foreground hover:text-foreground">
+            Reservas
+          </Link>
           <Link to="/hotel" className="text-muted-foreground hover:text-foreground">
             Configurações
           </Link>

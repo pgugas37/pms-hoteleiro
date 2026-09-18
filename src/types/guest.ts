@@ -17,6 +17,7 @@ export interface Guest {
   birth_date: string | null
   nationality: string
   notes: string | null
+  active: boolean
   created_at: string
   updated_at: string
 }
