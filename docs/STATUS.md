@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 26)_
+_Última atualização: 18/09/2026 (Módulo 27)_
 
 ## Contexto
 
@@ -342,6 +342,16 @@ Concluído e validado. Hoje o cancelamento de reserva só mudava o status pra "c
 
 Testado rodando local: cancelamento de reserva com cada um dos três motivos, conferindo que aparece certo na lista depois.
 
+## Módulo 27 — Relatório mensal consolidado ✅
+
+Concluído e validado. Módulo só de frontend, sem migration nova — reaproveita dados que já existiam (reservas, pagamentos, hóspedes, e o `cancellation_reason` do Módulo 26). Fecha o único candidato "grande" que ainda estava pendente na lista de módulos.
+
+- **`src/pages/FinanceiroPage.tsx`**: nova aba "Relatório mensal", com seletor de mês (`input type="month"`) independente do filtro de período que já existia (que afeta só as abas Faturamento/Indicadores) — assim dá pra olhar o fechamento de qualquer mês sem mexer no filtro principal. Reúne: financeiro do mês (faturado/recebido/pendente, reaproveitando a mesma lógica de `paidByReservation` já usada na aba Faturamento), indicadores de ocupação do mês (reaproveita `clipNightsToPeriod`/`daysBetweenInclusive` do Módulo 20), contagem de reservas por status com check-in no mês (incluindo quantas foram no-show, via o campo do Módulo 26), e quantidade de hóspedes novos cadastrados no mês. A query de `totalRooms` deixou de depender do filtro de período estar "limitado" (antes só rodava com período selecionado) pra funcionar também nessa aba nova.
+- **`src/lib/monthlyReport.ts`** (novo): `generateMonthlyReportPdf`, reaproveitando o padrão de PDF do recibo (Módulo 16) e da ficha de hóspede (Módulo 21) — documento A4 com cabeçalho do hotel, financeiro, indicadores, reservas por status e hóspedes novos do mês escolhido.
+- Testada a matemática do cálculo do intervalo do mês (virada de ano, mês de 31 dias, fevereiro bissexto e não bissexto) antes de integrar à tela.
+
+Testado rodando local: aba "Relatório mensal" com o mês atual, conferindo os números e a exportação em PDF.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -393,5 +403,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 26. ~~Especificar e implementar o Módulo 24 (Busca global — hóspedes, quartos e reservas).~~ **Concluído e validado.**
 27. ~~Especificar e implementar o Módulo 25 (Lembretes automáticos — chegada de amanhã e aniversário de hóspede).~~ **Concluído e validado.**
 28. ~~Especificar e implementar o Módulo 26 (Motivo de cancelamento / no-show).~~ **Concluído e validado.**
+29. ~~Especificar e implementar o Módulo 27 (Relatório mensal consolidado).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto, o Módulo 19 deu uma visão visual da ocupação dos 49 quartos ao longo dos próximos dias, o Módulo 20 trouxe indicadores de gestão (taxa de ocupação, diária média e RevPAR) pra tela Financeiro, o Módulo 21 deu conformidade com a exigência legal brasileira de registro de hóspede (FNRH), o Módulo 22 deu flexibilidade de precificação por período (alta temporada, feriados), o Módulo 23 deu rastreabilidade sobre quem mexeu em reservas e pagamentos, o Módulo 24 economiza cliques no dia a dia (achar rápido um hóspede/quarto/reserva de qualquer tela, sem navegar e refiltrar), o Módulo 25 dá à equipe um aviso antecipado de chegadas e um toque de hospitalidade (aniversário de hóspede), e o Módulo 26 dá visibilidade sobre no-show x cancelamento avisado, sem automatizar cobrança de multa. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto, o Módulo 19 deu uma visão visual da ocupação dos 49 quartos ao longo dos próximos dias, o Módulo 20 trouxe indicadores de gestão (taxa de ocupação, diária média e RevPAR) pra tela Financeiro, o Módulo 21 deu conformidade com a exigência legal brasileira de registro de hóspede (FNRH), o Módulo 22 deu flexibilidade de precificação por período (alta temporada, feriados), o Módulo 23 deu rastreabilidade sobre quem mexeu em reservas e pagamentos, o Módulo 24 economiza cliques no dia a dia (achar rápido um hóspede/quarto/reserva de qualquer tela, sem navegar e refiltrar), o Módulo 25 dá à equipe um aviso antecipado de chegadas e um toque de hospitalidade (aniversário de hóspede), o Módulo 26 dá visibilidade sobre no-show x cancelamento avisado, sem automatizar cobrança de multa, e o Módulo 27 dá um fechamento mensal consolidado, pronto pra revisar ou exportar em PDF. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
