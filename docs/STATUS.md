@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 21)_
+_Última atualização: 18/09/2026 (Módulo 22)_
 
 ## Contexto
 
@@ -43,7 +43,8 @@ Stack de frontend aprovada: React 18 + TypeScript + Vite + Tailwind CSS + shadcn
   21. `module11_payments_edit_delete`
   22. `module17_internal_notes`
   23. `module18_reservation_occupant_name`
-- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms`, `public.guests`, `public.reservations`, `public.maintenance_requests`, `public.payments`, `public.internal_notes` (todas com RLS habilitado).
+  24. `module22_seasonal_rates`
+- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms`, `public.guests`, `public.reservations`, `public.maintenance_requests`, `public.payments`, `public.internal_notes`, `public.seasonal_rates` (todas com RLS habilitado).
 - Função auxiliar `private.has_role(roles text[])` — generalização de `private.is_admin()`, usada nas policies de `guests` e `reservations` pra permitir admin, gerente e recepção.
 - Funções RPC (`security definer`, checagem de papel manual por dentro): `checkin_reservation`, `checkout_reservation`, `cancel_reservation` (reserva e quarto mudam de status juntos, na mesma transação), `mark_room_clean` (governança), `report_maintenance_issue`/`resolve_maintenance_request` (manutenção), `register_payment` (financeiro — edição e exclusão de pagamento já usam update/delete direto, protegidos por RLS admin-only, sem precisar de RPC).
 - Nota: a partir da migration 13 os nomes pararam de seguir o padrão `00NN_moduloXX_...` (ficou só `moduloXX_...`, sem número) — cosmético, não afeta o funcionamento; a ordem real é pela data/hora de aplicação, não pelo nome.
@@ -290,6 +291,17 @@ Concluído e validado. Puramente frontend (gera o PDF no navegador, reaproveitan
 
 Testado rodando local: gerar a ficha de uma reserva e conferir os dados do hóspede e da hospedagem no PDF baixado.
 
+## Módulo 22 — Tarifas sazonais/promocionais ✅
+
+Concluído e validado. Nova tabela `seasonal_rates` (migration `module22_seasonal_rates`) — diária diferente do preço base, válida num intervalo de datas, por tipo de quarto (ex.: alta temporada, Réveillon, feriados).
+
+- Colunas: `room_type_id` (referencia `room_types`, `on delete cascade`), `label`, `start_date`, `end_date`, `daily_rate`. RLS igual ao padrão de `room_types`: leitura pra todo autenticado, escrita só admin.
+- **Trava de sobreposição no banco**: constraint de exclusão (`exclude using gist`, mesma extensão `btree_gist` já usada na trava anti-overbooking do Módulo 07) impede cadastrar dois períodos que se sobrepõem pro mesmo tipo de quarto — testado direto via SQL antes de liberar (rollback, sem deixar dado de teste).
+- **Frontend:** nova seção "Tarifas sazonais" na tela **Quartos** (abaixo de Tipos de quarto e Quartos), com listagem e cadastro/edição via modal (só admin edita).
+- **Integração com Reservas:** ao escolher o quarto e/ou a data de check-in (em qualquer ordem) na tela de Reservas — tanto na reserva individual quanto na reserva em grupo —, a diária sugerida passa a checar primeiro se existe uma tarifa sazonal cobrindo aquela data pro tipo do quarto; se não houver, cai no preço base do tipo, como já era. Continua totalmente editável manualmente. Reservas já existentes não são afetadas — o cálculo só entra ao criar/editar.
+
+Testado rodando local: cadastrar uma tarifa sazonal e criar uma reserva com check-in dentro do período, conferindo que a diária muda automaticamente.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -336,5 +348,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 21. ~~Especificar e implementar o Módulo 19 (Mapa de ocupação).~~ **Concluído e validado.**
 22. ~~Especificar e implementar o Módulo 20 (Indicadores de desempenho — ocupação, ADR, RevPAR).~~ **Concluído e validado.**
 23. ~~Especificar e implementar o Módulo 21 (Ficha Nacional de Registro de Hóspede — FNRH — em PDF).~~ **Concluído e validado.**
+24. ~~Especificar e implementar o Módulo 22 (Tarifas sazonais/promocionais por tipo de quarto).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto, o Módulo 19 deu uma visão visual da ocupação dos 49 quartos ao longo dos próximos dias, o Módulo 20 trouxe indicadores de gestão (taxa de ocupação, diária média e RevPAR) pra tela Financeiro, e o Módulo 21 deu conformidade com a exigência legal brasileira de registro de hóspede (FNRH). A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto, o Módulo 19 deu uma visão visual da ocupação dos 49 quartos ao longo dos próximos dias, o Módulo 20 trouxe indicadores de gestão (taxa de ocupação, diária média e RevPAR) pra tela Financeiro, o Módulo 21 deu conformidade com a exigência legal brasileira de registro de hóspede (FNRH), e o Módulo 22 deu flexibilidade de precificação por período (alta temporada, feriados). A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
