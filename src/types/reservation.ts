@@ -29,7 +29,14 @@ export interface Reservation {
 }
 
 export interface ReservationWithRelations extends Reservation {
-  guests: { id: string; full_name: string } | null
+  guests: {
+    id: string
+    full_name: string
+    document_type?: 'cpf' | 'cnpj' | 'passport'
+    document_number?: string
+    nationality?: string
+    birth_date?: string | null
+  } | null
   rooms: { id: string; number: string; room_types: { id: string; name: string } | null } | null
 }
 

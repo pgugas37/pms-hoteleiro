@@ -24,6 +24,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/lib/auth-context'
 import { formatCurrency } from '@/lib/format'
+import { fetchHotel } from '@/lib/hotel'
+import { generateGuestRegistrationPdf } from '@/lib/registration'
 import { supabase } from '@/lib/supabase'
 import { groupReservationSchema, reservationSchema, type GroupReservationInput, type ReservationInput } from '@/lib/validations'
 import type { Role } from '@/types/auth'
@@ -47,7 +49,9 @@ interface RoomOption extends Room {
 async function fetchReservations(): Promise<ReservationWithRelations[]> {
   const { data, error } = await supabase
     .from('reservations')
-    .select('*, guests(id, full_name), rooms(id, number, room_types(id, name))')
+    .select(
+      '*, guests(id, full_name, document_type, document_number, nationality, birth_date), rooms(id, number, room_types(id, name))'
+    )
     .order('check_in', { ascending: false })
   if (error) throw error
   return (data as unknown as ReservationWithRelations[]) ?? []
@@ -122,6 +126,7 @@ export function ReservationsPage() {
   })
   const { data: guests } = useQuery({ queryKey: ['guests-select'], queryFn: fetchGuestsForSelect })
   const { data: rooms } = useQuery({ queryKey: ['rooms-select'], queryFn: fetchRoomsForSelect })
+  const { data: hotel } = useQuery({ queryKey: ['hotel'], queryFn: fetchHotel })
 
   const cancelReservation = useMutation({
     mutationFn: async (id: string) => {
@@ -315,6 +320,13 @@ export function ReservationsPage() {
                       {isStaff && (
                         <TableCell className="space-x-2 text-right">
                           <ReservationDialog reservation={reservation} guests={guests ?? []} rooms={rooms ?? []} />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => generateGuestRegistrationPdf(reservation, hotel ?? null)}
+                          >
+                            Ficha (PDF)
+                          </Button>
                           {reservation.status === 'confirmada' && (
                             <Button
                               size="sm"
