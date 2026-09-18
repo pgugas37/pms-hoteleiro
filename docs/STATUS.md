@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 24)_
+_Última atualização: 18/09/2026 (Módulo 25)_
 
 ## Contexto
 
@@ -323,6 +323,16 @@ Concluído e validado. Módulo só de frontend, sem migration nova — o objetiv
 
 Testado rodando local: Ctrl+K de qualquer tela, busca por nome de hóspede, documento e número de quarto, e navegação pros resultados.
 
+## Módulo 25 — Lembretes automáticos (chegada de amanhã e aniversário) ✅
+
+Concluído e validado. Módulo só de frontend, sem migration nova — usa dados que já existiam (`check_in` das reservas e `birth_date` dos hóspedes, cadastrado desde o Módulo 06). Por enquanto é só exibição na tela (sem envio automático de e-mail/SMS, que exigiria configurar um serviço de envio à parte).
+
+- **`src/pages/DashboardPage.tsx`**: novo card "Próximos dias", visível pros mesmos papéis que já viam o card "Hoje" (admin, gerente, recepção), só aparece quando há algo a mostrar:
+  - **Chegadas de amanhã** — reservas confirmadas com check-in amanhã, reaproveitando a mesma consulta do card "Hoje" (sem query nova).
+  - **Aniversários** — hóspedes com reserva em andamento ou chegando nos próximos 7 dias cujo aniversário (mês/dia, ignorando o ano de nascimento) cai nesse período; mostra "hoje", "amanhã" ou "em X dias". Cálculo de dias até o próximo aniversário trata corretamente a virada de ano (ex.: hoje 28/dez, aniversário 2/jan → 5 dias) — testado separadamente antes de integrar à tela.
+
+Testado rodando local: cadastro de hóspede de teste com aniversário dentro da janela de 7 dias e reserva confirmada com check-in pra amanhã, conferindo que o card aparece com os dados certos.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -372,5 +382,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 24. ~~Especificar e implementar o Módulo 22 (Tarifas sazonais/promocionais por tipo de quarto).~~ **Concluído e validado.**
 25. ~~Especificar e implementar o Módulo 23 (Auditoria de reservas e pagamentos).~~ **Concluído e validado.**
 26. ~~Especificar e implementar o Módulo 24 (Busca global — hóspedes, quartos e reservas).~~ **Concluído e validado.**
+27. ~~Especificar e implementar o Módulo 25 (Lembretes automáticos — chegada de amanhã e aniversário de hóspede).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto, o Módulo 19 deu uma visão visual da ocupação dos 49 quartos ao longo dos próximos dias, o Módulo 20 trouxe indicadores de gestão (taxa de ocupação, diária média e RevPAR) pra tela Financeiro, o Módulo 21 deu conformidade com a exigência legal brasileira de registro de hóspede (FNRH), o Módulo 22 deu flexibilidade de precificação por período (alta temporada, feriados), o Módulo 23 deu rastreabilidade sobre quem mexeu em reservas e pagamentos, e o Módulo 24 economiza cliques no dia a dia (achar rápido um hóspede/quarto/reserva de qualquer tela, sem navegar e refiltrar). A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto, o Módulo 19 deu uma visão visual da ocupação dos 49 quartos ao longo dos próximos dias, o Módulo 20 trouxe indicadores de gestão (taxa de ocupação, diária média e RevPAR) pra tela Financeiro, o Módulo 21 deu conformidade com a exigência legal brasileira de registro de hóspede (FNRH), o Módulo 22 deu flexibilidade de precificação por período (alta temporada, feriados), o Módulo 23 deu rastreabilidade sobre quem mexeu em reservas e pagamentos, o Módulo 24 economiza cliques no dia a dia (achar rápido um hóspede/quarto/reserva de qualquer tela, sem navegar e refiltrar), e o Módulo 25 dá à equipe um aviso antecipado de chegadas e um toque de hospitalidade (aniversário de hóspede). A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
