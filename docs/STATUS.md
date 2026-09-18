@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 10)_
+_Última atualização: 18/09/2026 (Módulo 11)_
 
 ## Contexto
 
@@ -39,9 +39,11 @@ Stack de frontend aprovada: React 18 + TypeScript + Vite + Tailwind CSS + shadcn
   17. `module08_delete_finished_and_invoice_reminder`
   18. `module09_housekeeping`
   19. `module10_maintenance`
-- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms`, `public.guests`, `public.reservations`, `public.maintenance_requests` (todas com RLS habilitado).
+  20. `module11_financeiro`
+  21. `module11_payments_edit_delete`
+- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms`, `public.guests`, `public.reservations`, `public.maintenance_requests`, `public.payments` (todas com RLS habilitado).
 - Função auxiliar `private.has_role(roles text[])` — generalização de `private.is_admin()`, usada nas policies de `guests` e `reservations` pra permitir admin, gerente e recepção.
-- Funções RPC (`security definer`, checagem de papel manual por dentro): `checkin_reservation`, `checkout_reservation`, `cancel_reservation` (reserva e quarto mudam de status juntos, na mesma transação), `mark_room_clean` (governança), `report_maintenance_issue`/`resolve_maintenance_request` (manutenção).
+- Funções RPC (`security definer`, checagem de papel manual por dentro): `checkin_reservation`, `checkout_reservation`, `cancel_reservation` (reserva e quarto mudam de status juntos, na mesma transação), `mark_room_clean` (governança), `report_maintenance_issue`/`resolve_maintenance_request` (manutenção), `register_payment` (financeiro — edição e exclusão de pagamento já usam update/delete direto, protegidos por RLS admin-only, sem precisar de RPC).
 - Nota: a partir da migration 13 os nomes pararam de seguir o padrão `00NN_moduloXX_...` (ficou só `moduloXX_...`, sem número) — cosmético, não afeta o funcionamento; a ordem real é pela data/hora de aplicação, não pelo nome.
 
 ## Módulo 01 — Fundação e arquitetura ✅
@@ -79,6 +81,7 @@ Concluído e validado. Página `/hotel` (link "Configurações" no menu): formul
 Concluído e validado. Substitui a página inicial (`/`) — antes só confirmava a conexão com o Supabase. Sem tabelas novas nem migrations: usa só `hotels`, `profiles` e `audit_log`, que já existiam.
 
 - Todos os usuários: card de boas-vindas (nome, papel) e resumo do hotel (nome, cidade/UF), com link para "Configurações". Desde o Módulo 08, também um card de **ocupação atual** (quartos ocupados / total, %), calculado a partir de `rooms.status`, com link para "Reservas" — que desde os Módulos 09/10 também mostra quantos quartos estão aguardando limpeza e em manutenção, quando houver algum.
+- Admin/gerente/financeiro: desde o Módulo 11, card **Financeiro** com faturado, recebido e pendente (total desde o início do sistema), com link para a tela `/financeiro`.
 - Só admin (única role com permissão de leitura nessas tabelas via RLS): contagem de usuários por papel e por status (ativo/inativo), com link para "Usuários"; feed das últimas atividades em `audit_log` (quem fez o quê, quando), com nome do autor resolvido via `profiles`.
 - Aviso fixo informando que indicadores financeiros (receita, diárias) chegam com o módulo de Financeiro.
 - Observação: hoje o `audit_log` só registra criação/edição de usuário (não há trigger de auditoria em `hotels`), então o feed de atividade começa com poucos registros — isso é esperado, não é bug.
@@ -162,6 +165,21 @@ Concluído e validado. Mesmo raciocínio do Módulo 09, agora pro papel "manuten
 
 Testado rodando local: reportar problema num quarto disponível (vira "Em manutenção"), resolver o chamado (libera o quarto), reportar problema num quarto ocupado (não muda o status do quarto, só registra o chamado).
 
+## Módulo 11 — Financeiro / Faturamento ✅
+
+Concluído e validado. Dá função de verdade ao papel "financeiro" (cadastrado desde o Módulo 02, mas sem nenhuma tela até aqui) — último papel do RBAC que ainda não tinha função no sistema.
+
+- Tabela nova `payments` (migration `module11_financeiro`): reserva, valor, forma de pagamento (dinheiro/Pix/cartão de crédito/cartão de débito/transferência), observações, quem registrou, data. RLS: leitura pra todo autenticado; escrita direta bloqueada — registro só via função RPC.
+- Função RPC `register_payment` (admin, gerente, recepção ou financeiro): registra um pagamento vinculado a uma reserva.
+- **Edição e exclusão de pagamentos** (migration `module11_payments_edit_delete`, só admin): corrige lançamentos errados sem precisar de RPC — update e delete diretos, protegidos por RLS (`payments_update_admin`, `payments_delete_admin`).
+- **Frontend:** página `/financeiro` (link "Financeiro" no menu, visível pra admin/gerente/recepção/financeiro), com cards de resumo (Faturado, Recebido, Pendente) e duas abas: "Faturamento" (reservas não canceladas com total, pago e saldo, botão "Registrar pagamento" em cada uma) e "Histórico de pagamentos" (todos os pagamentos, mais recentes primeiro, com "Editar"/"Excluir" pra admin).
+- Dashboard ganhou o card "Financeiro" (ver Módulo 04, acima).
+- De quebra, corrigida uma lacuna pré-existente no projeto (não relacionada ao módulo em si): faltava a dependência `@types/node`, que fazia o `pnpm build` completo (usado pelo deploy no Netlify) falhar — `pnpm dev` não era afetado. Adicionada como devDependency.
+
+Testado rodando local: registrar pagamento parcial (saldo diminui), quitar totalmente (badge "Quitado"), histórico de pagamentos e card do Dashboard batendo com a tela Financeiro, editar valor/forma de um pagamento (saldo recalcula), excluir pagamento (saldo volta a aumentar).
+
+**Limitação conhecida:** o faturamento e os totais não são filtrados por período — é o total acumulado desde o início do sistema. Filtro por mês/ano pode ser um refinamento futuro.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -197,5 +215,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 10. ~~Especificar e implementar o Módulo 08 (Check-in/Check-out).~~ **Concluído e validado.**
 11. ~~Especificar e implementar o Módulo 09 (Governança — limpeza de quartos).~~ **Concluído e validado.**
 12. ~~Especificar e implementar o Módulo 10 (Manutenção).~~ **Concluído e validado.**
+13. ~~Especificar e implementar o Módulo 11 (Financeiro/Faturamento).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, e os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário). A partir daqui, o Gustavo deixou a escolha dos próximos módulos a critério do Claude. Únicos papéis do RBAC ainda sem função no sistema: "financeiro". Candidato natural pro Módulo 11: Financeiro/Faturamento.
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), e o Módulo 11 deu função a todos os papéis do RBAC — não sobrou nenhum papel sem tela própria. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09). Candidatos possíveis daqui pra frente: relatórios/exportação de dados, filtro por período no financeiro, ou funcionalidades transversais (busca global, notificações).
