@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 11)_
+_Última atualização: 18/09/2026 (Módulo 12)_
 
 ## Contexto
 
@@ -180,6 +180,16 @@ Testado rodando local: registrar pagamento parcial (saldo diminui), quitar total
 
 **Limitação conhecida:** o faturamento e os totais não são filtrados por período — é o total acumulado desde o início do sistema. Filtro por mês/ano pode ser um refinamento futuro.
 
+## Módulo 12 — Filtros e período ✅
+
+Concluído e validado. Puramente frontend (filtragem sobre os dados já buscados) — sem migration no banco. Resolve a limitação conhecida registrada no Módulo 11.
+
+- **Reservas:** campo de busca por nome do hóspede e filtro por status (Confirmada/Em andamento/Finalizada/Cancelada/Todos), acima da lista da aba "Reservas".
+- **Financeiro:** seletor de período (Tudo, Este mês, Mês passado, Personalizado com data inicial/final), filtrando a aba "Faturamento" e os cards de Faturado/Recebido/Pendente pelas reservas com check-in dentro do intervalo. O valor "Pago" de cada reserva continua sendo o total pago em qualquer data (não fatiado por período). A aba "Histórico de pagamentos" não é afetada pelo filtro — continua um log completo, com aviso explícito na tela sobre isso.
+- Hóspedes já tinha busca por nome/documento desde o Módulo 06 — não precisou de mudança.
+
+Testado rodando local: busca por nome em Reservas, filtro por status, troca entre "Este mês"/"Mês passado"/"Tudo" no Financeiro com os números recalculando, filtro "Personalizado" com intervalo de datas.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -216,5 +226,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 11. ~~Especificar e implementar o Módulo 09 (Governança — limpeza de quartos).~~ **Concluído e validado.**
 12. ~~Especificar e implementar o Módulo 10 (Manutenção).~~ **Concluído e validado.**
 13. ~~Especificar e implementar o Módulo 11 (Financeiro/Faturamento).~~ **Concluído e validado.**
+14. ~~Especificar e implementar o Módulo 12 (Filtros e período).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), e o Módulo 11 deu função a todos os papéis do RBAC — não sobrou nenhum papel sem tela própria. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09). Candidatos possíveis daqui pra frente: relatórios/exportação de dados, filtro por período no financeiro, ou funcionalidades transversais (busca global, notificações).
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, e o Módulo 12 resolveu a limitação de período/busca que ficou registrada no Módulo 11. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09). Candidatos possíveis daqui pra frente: relatórios/exportação de dados (CSV/PDF), histórico de reservas por hóspede (na própria tela de Hóspedes), ou notificações/lembretes.

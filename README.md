@@ -46,5 +46,6 @@ Veja [`docs/STATUS.md`](./docs/STATUS.md) para o histórico de decisões, módul
 - [x] Módulo 09 — Governança / limpeza de quartos (concluído e validado)
 - [x] Módulo 10 — Manutenção (concluído e validado)
 - [x] Módulo 11 — Financeiro / Faturamento (concluído e validado)
+- [x] Módulo 12 — Filtros e período (concluído e validado)
 
 > O schema do banco (Módulos 01 e 02) já está aplicado no Supabase. O código do frontend está sendo reconstruído neste repositório a partir do zero, usando o schema existente como referência.
