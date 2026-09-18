@@ -6,19 +6,59 @@ import { GuestDialog } from '@/components/GuestDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '@/lib/auth-context'
+import { formatCurrency } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 import { DOCUMENT_TYPE_LABELS, type Guest } from '@/types/guest'
 import type { Role } from '@/types/auth'
+import {
+  RESERVATION_STATUS_LABELS,
+  nightsBetween,
+  type ReservationStatus,
+} from '@/types/reservation'
 
 const STAFF_ROLES: Role[] = ['admin', 'gerente', 'recepcao']
+
+interface GuestReservation {
+  id: string
+  guest_id: string
+  check_in: string
+  check_out: string
+  daily_rate: number
+  status: ReservationStatus
+  rooms: { number: string } | null
+}
 
 async function fetchGuests(): Promise<Guest[]> {
   const { data, error } = await supabase.from('guests').select('*').order('full_name', { ascending: true })
   if (error) throw error
   return (data as Guest[]) ?? []
+}
+
+async function fetchGuestReservations(): Promise<GuestReservation[]> {
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('id, guest_id, check_in, check_out, daily_rate, status, rooms(number)')
+    .order('check_in', { ascending: false })
+  if (error) throw error
+  return (data as unknown as GuestReservation[]) ?? []
+}
+
+function statusBadgeVariant(status: ReservationStatus) {
+  if (status === 'confirmada') return 'default'
+  if (status === 'em_andamento') return 'secondary'
+  if (status === 'cancelada') return 'destructive'
+  return 'outline'
 }
 
 export function GuestsPage() {
@@ -29,6 +69,20 @@ export function GuestsPage() {
   const [search, setSearch] = React.useState('')
 
   const { data: guests, isLoading } = useQuery({ queryKey: ['guests'], queryFn: fetchGuests })
+  const { data: guestReservations } = useQuery({
+    queryKey: ['guest-reservations'],
+    queryFn: fetchGuestReservations,
+  })
+
+  const reservationsByGuest = React.useMemo(() => {
+    const map = new Map<string, GuestReservation[]>()
+    for (const reservation of guestReservations ?? []) {
+      const list = map.get(reservation.guest_id) ?? []
+      list.push(reservation)
+      map.set(reservation.guest_id, list)
+    }
+    return map
+  }, [guestReservations])
 
   const filteredGuests = React.useMemo(() => {
     if (!guests) return []
@@ -88,6 +142,7 @@ export function GuestsPage() {
                   <TableHead>Documento</TableHead>
                   <TableHead>Contato</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Estadias</TableHead>
                   {isStaff && <TableHead className="text-right">Ações</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -112,6 +167,12 @@ export function GuestsPage() {
                       <Badge variant={guest.active ? 'default' : 'outline'}>
                         {guest.active ? 'Ativo' : 'Inativo'}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <GuestHistoryDialog
+                        guestName={guest.full_name}
+                        reservations={reservationsByGuest.get(guest.id) ?? []}
+                      />
                     </TableCell>
                     {isStaff && (
                       <TableCell className="space-x-2 text-right">
@@ -147,5 +208,67 @@ export function GuestsPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function GuestHistoryDialog({
+  guestName,
+  reservations,
+}: {
+  guestName: string
+  reservations: GuestReservation[]
+}) {
+  const stays = reservations.filter((r) => r.status !== 'cancelada')
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" disabled={reservations.length === 0}>
+          Histórico ({stays.length})
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Histórico de {guestName}</DialogTitle>
+          <DialogDescription>
+            {stays.length === 0
+              ? 'Nenhuma estadia (fora reservas canceladas).'
+              : `${stays.length} estadia${stays.length > 1 ? 's' : ''}, mais recente primeiro.`}
+          </DialogDescription>
+        </DialogHeader>
+        {reservations.length > 0 && (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Quarto</TableHead>
+                <TableHead>Período</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {reservations.map((reservation) => {
+                const nights = nightsBetween(reservation.check_in, reservation.check_out)
+                return (
+                  <TableRow key={reservation.id}>
+                    <TableCell>{reservation.rooms?.number ?? '—'}</TableCell>
+                    <TableCell>
+                      {new Date(`${reservation.check_in}T00:00:00`).toLocaleDateString('pt-BR')} –{' '}
+                      {new Date(`${reservation.check_out}T00:00:00`).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={statusBadgeVariant(reservation.status)}>
+                        {RESERVATION_STATUS_LABELS[reservation.status]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{formatCurrency(reservation.daily_rate * nights)}</TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
