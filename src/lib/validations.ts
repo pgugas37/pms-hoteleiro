@@ -1,8 +1,10 @@
 import { z } from 'zod'
 
+import { isValidCnpj, isValidCpf } from '@/lib/documents'
 import { BRAZIL_STATES } from '@/types/hotel'
 import { ROLES } from '@/types/auth'
 import { ROOM_STATUSES } from '@/types/room'
+import { DOCUMENT_TYPES } from '@/types/guest'
 
 export const loginSchema = z.object({
   email: z.string().min(1, 'Informe o e-mail.').email('E-mail inválido.'),
@@ -36,9 +38,7 @@ export type NewPasswordInput = z.infer<typeof newPasswordSchema>
 
 export const hotelSchema = z.object({
   name: z.string().min(2, 'Informe o nome do hotel.'),
-  cnpj: z
-    .string()
-    .refine((value) => value.replace(/\D/g, '').length === 14, 'CNPJ precisa ter 14 dígitos.'),
+  cnpj: z.string().refine(isValidCnpj, 'CNPJ inválido.'),
   timezone: z.string().min(1, 'Selecione o fuso horário.'),
   street: z.string().min(1, 'Informe a rua.'),
   number: z.string().min(1, 'Informe o número.'),
@@ -66,3 +66,26 @@ export const roomSchema = z.object({
   notes: z.string().optional(),
 })
 export type RoomInput = z.infer<typeof roomSchema>
+
+export const guestSchema = z
+  .object({
+    full_name: z.string().min(2, 'Informe o nome completo.'),
+    document_type: z.enum(DOCUMENT_TYPES, {
+      errorMap: () => ({ message: 'Selecione o tipo de documento.' }),
+    }),
+    document_number: z.string().min(1, 'Informe o número do documento.'),
+    email: z.union([z.string().email('E-mail inválido.'), z.literal('')]).optional(),
+    phone: z.string().optional(),
+    birth_date: z.string().optional(),
+    nationality: z.string().min(1, 'Informe a nacionalidade.'),
+    notes: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.document_type === 'cpf') return isValidCpf(data.document_number)
+      if (data.document_type === 'cnpj') return isValidCnpj(data.document_number)
+      return data.document_number.trim().length > 0
+    },
+    { message: 'Documento inválido para o tipo selecionado.', path: ['document_number'] }
+  )
+export type GuestInput = z.infer<typeof guestSchema>

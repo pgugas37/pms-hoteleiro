@@ -18,6 +18,9 @@ export function AppLayout() {
           <Link to="/quartos" className="text-muted-foreground hover:text-foreground">
             Quartos
           </Link>
+          <Link to="/hospedes" className="text-muted-foreground hover:text-foreground">
+            Hóspedes
+          </Link>
           <Link to="/hotel" className="text-muted-foreground hover:text-foreground">
             Configurações
           </Link>

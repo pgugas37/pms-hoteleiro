@@ -29,7 +29,8 @@ Stack de frontend aprovada: React 18 + TypeScript + Vite + Tailwind CSS + shadcn
   7. `0007_module02_fix_stale_function_reference`
   8. `0008_module02_audit_log_profile_changes`
   9. `0009_module05_rooms`
-- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms` (todas com RLS habilitado).
+  10. `0010_module06_guests`
+- Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms`, `public.guests` (todas com RLS habilitado).
 
 ## Módulo 01 — Fundação e arquitetura ✅
 
@@ -83,6 +84,17 @@ Concluído e validado. Duas tabelas novas no Supabase (migration `0009_module05_
 
 Testado rodando local: cadastro de tipo de quarto, cadastro de quarto vinculado ao tipo, edição e exclusão funcionando.
 
+## Módulo 06 — Hóspedes
+
+Especificado e implementado. Nova tabela `guests` no Supabase (migration `0010_module06_guests`), com RLS diferente do padrão anterior: leitura para todo autenticado; criação/edição para **admin, gerente e recepção** (via nova função `private.has_role(roles)`, generalização de `private.is_admin()`); exclusão só admin.
+
+- Campos: nome completo, documento (CPF, CNPJ ou passaporte + número, único por tipo — CNPJ cobre hóspede/empresa com faturamento via CNPJ), e-mail e telefone (opcionais), data de nascimento (opcional), nacionalidade (padrão "Brasileira"), observações. Sem campo de profissão (decisão do Gustavo).
+- Máscara de CPF/CNPJ no formulário conforme o tipo de documento selecionado.
+
+**Frontend:** página `/hospedes` (link "Hóspedes" no menu), com busca por nome ou documento e cadastro/edição via modal. Delete bloqueado se houver reservas vinculadas (`on delete restrict`, tratado com mensagem amigável), preparando o terreno pro Módulo 07.
+
+Falta validar rodando localmente.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -113,5 +125,5 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 5. ~~Especificar e implementar o Módulo 03 (Configurações do hotel).~~ **Concluído e validado.**
 6. ~~Especificar e implementar o Módulo 04 (Dashboard).~~ **Concluído e validado.**
 7. ~~Especificar e implementar o Módulo 05 (Quartos).~~ **Concluído e validado.**
-8. Módulo 06 — Hóspedes (próximo).
-9. Módulo 07 — Reservas.
+8. ~~Especificar e implementar o Módulo 06 (Hóspedes).~~ **Implementado — falta validar rodando localmente (`pnpm dev`, acessar `/hospedes`).**
+9. Módulo 07 — Reservas (próximo).
