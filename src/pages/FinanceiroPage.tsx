@@ -47,6 +47,38 @@ function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
+function addDays(isoDate: string, amount: number): string {
+  const date = new Date(`${isoDate}T00:00:00`)
+  date.setDate(date.getDate() + amount)
+  return toIsoDate(date)
+}
+
+/** Quantidade de dias entre duas datas ISO, incluindo o dia inicial e o final. */
+function daysBetweenInclusive(startIso: string, endIso: string): number {
+  const start = new Date(`${startIso}T00:00:00`)
+  const end = new Date(`${endIso}T00:00:00`)
+  return Math.round((end.getTime() - start.getTime()) / 86400000) + 1
+}
+
+/**
+ * Quantas noites de uma reserva (check_in/check_out, intervalo [check_in, check_out)) caem
+ * dentro do período [periodStart, periodEnd] (datas inclusive).
+ */
+function clipNightsToPeriod(
+  checkIn: string,
+  checkOut: string,
+  periodStart: string,
+  periodEnd: string
+): number {
+  const windowEnd = addDays(periodEnd, 1)
+  const clipStart = checkIn > periodStart ? checkIn : periodStart
+  const clipEnd = checkOut < windowEnd ? checkOut : windowEnd
+  const nights = Math.round(
+    (new Date(`${clipEnd}T00:00:00`).getTime() - new Date(`${clipStart}T00:00:00`).getTime()) / 86400000
+  )
+  return nights > 0 ? nights : 0
+}
+
 /** Intervalo [início, fim] (datas ISO, inclusive) pro filtro de período. null/null = sem filtro. */
 function getPeriodRange(
   mode: PeriodMode,
@@ -91,6 +123,31 @@ async function fetchPayments(): Promise<PaymentWithReservation[]> {
   return (data as unknown as PaymentWithReservation[]) ?? []
 }
 
+interface KpiReservation {
+  check_in: string
+  check_out: string
+  daily_rate: number
+}
+
+/** Reservas (não canceladas) cuja estadia toca o período [start, end] (inclusive), pra calcular indicadores. */
+async function fetchKpiReservations(start: string, end: string): Promise<KpiReservation[]> {
+  const windowEnd = addDays(end, 1)
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('check_in, check_out, daily_rate')
+    .neq('status', 'cancelada')
+    .lt('check_in', windowEnd)
+    .gt('check_out', start)
+  if (error) throw error
+  return (data ?? []) as KpiReservation[]
+}
+
+async function fetchTotalRooms(): Promise<number> {
+  const { count, error } = await supabase.from('rooms').select('*', { count: 'exact', head: true })
+  if (error) throw error
+  return count ?? 0
+}
+
 function rpcErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === 'object' && error !== null && 'message' in error) {
     const message = (error as { message?: string }).message
@@ -129,6 +186,39 @@ export function FinanceiroPage() {
   })
 
   const { data: hotel } = useQuery({ queryKey: ['hotel'], queryFn: fetchHotel })
+
+  const hasBoundedPeriod = !!period.start && !!period.end
+
+  const { data: kpiReservations, isLoading: loadingKpi } = useQuery({
+    queryKey: ['kpi-reservations', period.start, period.end],
+    queryFn: () => fetchKpiReservations(period.start as string, period.end as string),
+    enabled: hasBoundedPeriod,
+  })
+
+  const { data: totalRooms } = useQuery({
+    queryKey: ['kpi-total-rooms'],
+    queryFn: fetchTotalRooms,
+    enabled: hasBoundedPeriod,
+  })
+
+  const kpi = React.useMemo(() => {
+    if (!hasBoundedPeriod || !totalRooms) return null
+    const start = period.start as string
+    const end = period.end as string
+    const periodDays = daysBetweenInclusive(start, end)
+    const roomNightsAvailable = totalRooms * periodDays
+    let roomNightsOccupied = 0
+    let roomRevenue = 0
+    for (const reservation of kpiReservations ?? []) {
+      const nights = clipNightsToPeriod(reservation.check_in, reservation.check_out, start, end)
+      roomNightsOccupied += nights
+      roomRevenue += nights * reservation.daily_rate
+    }
+    const occupancyRate = roomNightsAvailable > 0 ? roomNightsOccupied / roomNightsAvailable : 0
+    const adr = roomNightsOccupied > 0 ? roomRevenue / roomNightsOccupied : 0
+    const revPar = roomNightsAvailable > 0 ? roomRevenue / roomNightsAvailable : 0
+    return { periodDays, roomNightsAvailable, roomNightsOccupied, roomRevenue, occupancyRate, adr, revPar }
+  }, [hasBoundedPeriod, totalRooms, kpiReservations, period])
 
   const paidByReservation = React.useMemo(() => {
     const totals = new Map<string, number>()
@@ -269,6 +359,7 @@ export function FinanceiroPage() {
         <TabsList>
           <TabsTrigger value="faturamento">Faturamento</TabsTrigger>
           <TabsTrigger value="pagamentos">Histórico de pagamentos</TabsTrigger>
+          <TabsTrigger value="indicadores">Indicadores</TabsTrigger>
         </TabsList>
 
         <TabsContent value="faturamento">
@@ -419,6 +510,61 @@ export function FinanceiroPage() {
                     ))}
                   </TableBody>
                 </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="indicadores">
+          <Card>
+            <CardHeader>
+              <CardTitle>Indicadores de desempenho</CardTitle>
+              <CardDescription>
+                Taxa de ocupação, diária média (ADR) e RevPAR no período selecionado acima ({PERIOD_MODE_LABELS[periodMode]}
+                ). Considera as noites de cada reserva não cancelada que caem dentro do período, mesmo quando a estadia
+                começa ou termina fora dele.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!hasBoundedPeriod && (
+                <p className="text-sm text-muted-foreground">
+                  Selecione um período específico (não "Tudo") no filtro acima pra calcular os indicadores — eles
+                  precisam de datas de início e fim.
+                </p>
+              )}
+
+              {hasBoundedPeriod && loadingKpi && <p className="text-sm text-muted-foreground">Carregando...</p>}
+
+              {hasBoundedPeriod && !loadingKpi && kpi && (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <Card>
+                      <CardHeader className="space-y-0 pb-2">
+                        <CardDescription>Taxa de ocupação</CardDescription>
+                        <CardTitle className="text-xl">{Math.round(kpi.occupancyRate * 100)}%</CardTitle>
+                      </CardHeader>
+                    </Card>
+                    <Card>
+                      <CardHeader className="space-y-0 pb-2">
+                        <CardDescription>Diária média (ADR)</CardDescription>
+                        <CardTitle className="text-xl">{formatCurrency(kpi.adr)}</CardTitle>
+                      </CardHeader>
+                    </Card>
+                    <Card>
+                      <CardHeader className="space-y-0 pb-2">
+                        <CardDescription>RevPAR</CardDescription>
+                        <CardTitle className="text-xl">{formatCurrency(kpi.revPar)}</CardTitle>
+                      </CardHeader>
+                    </Card>
+                  </div>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <p>
+                      Período: {kpi.periodDays} dia(s) · {totalRooms} quarto(s) cadastrado(s) ·{' '}
+                      {kpi.roomNightsOccupied} de {kpi.roomNightsAvailable} quartos-noite ocupados
+                    </p>
+                    <p>Receita de diárias no período: {formatCurrency(kpi.roomRevenue)}</p>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
