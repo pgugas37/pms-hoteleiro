@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 12)_
+_Última atualização: 18/09/2026 (Módulo 13)_
 
 ## Contexto
 
@@ -190,6 +190,16 @@ Concluído e validado. Puramente frontend (filtragem sobre os dados já buscados
 
 Testado rodando local: busca por nome em Reservas, filtro por status, troca entre "Este mês"/"Mês passado"/"Tudo" no Financeiro com os números recalculando, filtro "Personalizado" com intervalo de datas.
 
+## Módulo 13 — Exportação de relatórios (CSV) ✅
+
+Concluído e validado. Puramente frontend (gera o CSV no navegador, via `Blob`) — sem migration no banco. Dá uma saída dos dados pra fora do sistema, útil pra planilhas ou pra passar pro contador.
+
+- Utilitário novo `src/lib/csv.ts` (`downloadCsv`): gera CSV com separador `;` (compatível com Excel em pt-BR), BOM UTF-8 pra acentuação correta, valores decimais com vírgula.
+- Botão "Exportar CSV" na aba **Faturamento** do Financeiro: exporta as reservas visíveis (respeitando o filtro de período selecionado) — hóspede, quarto, check-in, check-out, total, pago, saldo.
+- Botão "Exportar CSV" na aba **Histórico de pagamentos**: exporta todos os pagamentos — data, hóspede, quarto, valor, forma, observações.
+
+Testado rodando local: exportar CSV das duas abas e abrir no Excel, conferindo valores e acentuação.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -227,5 +237,6 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 12. ~~Especificar e implementar o Módulo 10 (Manutenção).~~ **Concluído e validado.**
 13. ~~Especificar e implementar o Módulo 11 (Financeiro/Faturamento).~~ **Concluído e validado.**
 14. ~~Especificar e implementar o Módulo 12 (Filtros e período).~~ **Concluído e validado.**
+15. ~~Especificar e implementar o Módulo 13 (Exportação de relatórios em CSV).~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, e o Módulo 12 resolveu a limitação de período/busca que ficou registrada no Módulo 11. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09). Candidatos possíveis daqui pra frente: relatórios/exportação de dados (CSV/PDF), histórico de reservas por hóspede (na própria tela de Hóspedes), ou notificações/lembretes.
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, e o Módulo 13 permitiu tirar os dados do sistema (CSV). A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09). Candidatos possíveis daqui pra frente: histórico de reservas por hóspede (na própria tela de Hóspedes), notificações/lembretes, ou exportação em PDF.
