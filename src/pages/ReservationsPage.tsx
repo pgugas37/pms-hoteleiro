@@ -198,7 +198,16 @@ export function ReservationsPage() {
       queryClient.invalidateQueries({ queryKey: ['reservations'] })
       toast.success('Reserva excluída.')
     },
-    onError: () => toast.error('Não foi possível excluir a reserva.'),
+    onError: (error) => {
+      const code = errorCode(error)
+      if (code === '23503') {
+        toast.error(
+          'Não é possível excluir: essa reserva tem pagamentos registrados no financeiro. Exclua ou estorne os pagamentos dela primeiro.'
+        )
+      } else {
+        toast.error('Não foi possível excluir a reserva.')
+      }
+    },
   })
 
   const checkinReservation = useMutation({
