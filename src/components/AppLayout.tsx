@@ -1,81 +1,57 @@
-import { LogOut } from 'lucide-react'
-import { Link, Outlet } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { LogOut, Menu } from 'lucide-react'
+import * as React from 'react'
+import { Outlet } from 'react-router-dom'
 
 import { GlobalSearchDialog } from '@/components/GlobalSearchDialog'
+import { Sidebar } from '@/components/Sidebar'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
+import { fetchHotel } from '@/lib/hotel'
 import { ROLE_LABELS } from '@/types/auth'
 
 export function AppLayout() {
   const { profile, signOut } = useAuth()
+  const [mobileNavOpen, setMobileNavOpen] = React.useState(false)
+
+  const { data: hotel } = useQuery({ queryKey: ['hotel'], queryFn: fetchHotel })
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between border-b px-6 py-3">
-        <div className="flex items-center gap-4">
-          <Link to="/" className="font-semibold tracking-tight">
-            PMS Hoteleiro
-          </Link>
-          <GlobalSearchDialog />
-        </div>
-        <nav className="flex items-center gap-4 text-sm">
-          <Link to="/quartos" className="text-muted-foreground hover:text-foreground">
-            Quartos
-          </Link>
-          <Link to="/hospedes" className="text-muted-foreground hover:text-foreground">
-            Hóspedes
-          </Link>
-          <Link to="/reservas" className="text-muted-foreground hover:text-foreground">
-            Reservas
-          </Link>
-          <Link to="/mapa" className="text-muted-foreground hover:text-foreground">
-            Mapa
-          </Link>
-          {profile && ['admin', 'gerente', 'governanca'].includes(profile.role) && (
-            <Link to="/governanca" className="text-muted-foreground hover:text-foreground">
-              Governança
-            </Link>
-          )}
-          {profile && ['admin', 'gerente', 'recepcao', 'governanca', 'manutencao'].includes(profile.role) && (
-            <Link to="/manutencao" className="text-muted-foreground hover:text-foreground">
-              Manutenção
-            </Link>
-          )}
-          {profile && ['admin', 'gerente', 'recepcao', 'financeiro'].includes(profile.role) && (
-            <Link to="/financeiro" className="text-muted-foreground hover:text-foreground">
-              Financeiro
-            </Link>
-          )}
-          <Link to="/hotel" className="text-muted-foreground hover:text-foreground">
-            Configurações
-          </Link>
-          {profile?.role === 'admin' && (
-            <Link to="/usuarios" className="text-muted-foreground hover:text-foreground">
-              Usuários
-            </Link>
-          )}
-          {profile?.role === 'admin' && (
-            <Link to="/auditoria" className="text-muted-foreground hover:text-foreground">
-              Auditoria
-            </Link>
-          )}
-          <Link to="/minha-conta" className="text-muted-foreground hover:text-foreground">
-            Minha conta
-          </Link>
-          {profile && (
-            <span className="text-muted-foreground">
-              {profile.full_name} · {ROLE_LABELS[profile.role]}
-            </span>
-          )}
-          <Button variant="ghost" size="sm" onClick={() => signOut()}>
-            <LogOut className="mr-1 h-4 w-4" />
-            Sair
-          </Button>
-        </nav>
-      </header>
-      <main className="flex-1">
-        <Outlet />
-      </main>
+    <div className="flex min-h-screen bg-muted/30">
+      <Sidebar role={profile?.role} hotel={hotel} mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+
+      <div className="flex min-h-screen flex-1 flex-col">
+        <header className="flex items-center justify-between gap-4 border-b bg-background px-4 py-3 md:px-6">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Abrir menu"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <GlobalSearchDialog />
+          </div>
+
+          <div className="flex items-center gap-4 text-sm">
+            {profile && (
+              <span className="hidden text-muted-foreground sm:inline">
+                {profile.full_name} · {ROLE_LABELS[profile.role]}
+              </span>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => signOut()}>
+              <LogOut className="mr-1 h-4 w-4" />
+              Sair
+            </Button>
+          </div>
+        </header>
+
+        <main className="flex-1">
+          <Outlet />
+        </main>
+      </div>
     </div>
   )
 }

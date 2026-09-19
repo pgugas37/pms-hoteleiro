@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
+import { BedDouble, DoorClosed, DoorOpen, PieChart, type LucideIcon } from 'lucide-react'
 import * as React from 'react'
 import { Link } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import { AUDIT_ACTION_LABELS, AUDIT_ENTITY_LABELS, fetchActorNames } from '@/lib/audit'
 import { useAuth } from '@/lib/auth-context'
 import { formatCurrency } from '@/lib/format'
@@ -97,6 +99,34 @@ async function fetchAuditLog(): Promise<AuditEntry[]> {
     .limit(10)
   if (error) throw error
   return (data ?? []) as AuditEntry[]
+}
+
+interface KpiCardProps {
+  label: string
+  value: string
+  sublabel?: string
+  icon: LucideIcon
+  tone: 'navy' | 'emerald' | 'sky' | 'amber'
+}
+
+const KPI_TONE_CLASSES: Record<KpiCardProps['tone'], string> = {
+  navy: 'bg-slate-800 text-white',
+  emerald: 'bg-emerald-600 text-white',
+  sky: 'bg-sky-500 text-white',
+  amber: 'bg-amber-500 text-white',
+}
+
+function KpiCard({ label, value, sublabel, icon: Icon, tone }: KpiCardProps) {
+  return (
+    <div className={cn('flex items-center justify-between rounded-lg p-4 shadow-sm', KPI_TONE_CLASSES[tone])}>
+      <div>
+        <p className="text-2xl font-bold leading-tight">{value}</p>
+        <p className="text-sm text-white/85">{label}</p>
+        {sublabel && <p className="text-xs text-white/70">{sublabel}</p>}
+      </div>
+      <Icon className="h-8 w-8 text-white/70" />
+    </div>
+  )
 }
 
 export function DashboardPage() {
@@ -234,6 +264,29 @@ export function DashboardPage() {
           {profile ? ROLE_LABELS[profile.role] : 'Carregando seu perfil...'}
         </p>
       </div>
+
+      {(canSeeTodayPanel || occupancy.total > 0) && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {canSeeTodayPanel && (
+            <KpiCard label="Chegadas hoje" value={String(today.arrivals.length)} icon={DoorOpen} tone="navy" />
+          )}
+          {canSeeTodayPanel && (
+            <KpiCard label="Saídas hoje" value={String(today.departures.length)} icon={DoorClosed} tone="emerald" />
+          )}
+          {occupancy.total > 0 && (
+            <KpiCard
+              label="Ocupação"
+              value={`${occupancy.rate}%`}
+              sublabel={`${occupancy.occupied} de ${occupancy.total} quartos`}
+              icon={PieChart}
+              tone="sky"
+            />
+          )}
+          {occupancy.total > 0 && (
+            <KpiCard label="Disponíveis" value={String(occupancy.available)} icon={BedDouble} tone="amber" />
+          )}
+        </div>
+      )}
 
       <Card>
         <CardHeader>
