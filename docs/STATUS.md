@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 18/09/2026 (Módulo 27)_
+_Última atualização: 19/09/2026 (Finalização — Layout e Deploy)_
 
 ## Contexto
 
@@ -352,6 +352,26 @@ Concluído e validado. Módulo só de frontend, sem migration nova — reaprovei
 
 Testado rodando local: aba "Relatório mensal" com o mês atual, conferindo os números e a exportação em PDF.
 
+## Finalização — Layout e Deploy ✅
+
+Com os 27 módulos concluídos e sem novos candidatos óbvios na lista, o projeto entrou na fase de fechamento: deixar o visual mais apresentável e colocar o sistema no ar pra acesso de qualquer dispositivo.
+
+**Redesign de layout** — `AppLayout.tsx` foi reestruturado de um cabeçalho horizontal simples para um layout com **menu lateral fixo** (`src/components/Sidebar.tsx`, novo arquivo), inspirado numa referência visual de PMS hoteleiro que o Gustavo compartilhou:
+- Sidebar navy escuro com o nome/identidade do hotel (via `fetchHotel`, já usado em outras telas) e um indicador "● Online", lista de navegação com ícones (lucide-react), item ativo destacado, mesmas regras de visibilidade por papel de antes (Governança, Manutenção, Financeiro, Usuários e Auditoria continuam restritos aos mesmos papéis). No mobile vira um menu deslizante (ícone de hambúrguer na topbar).
+- Topbar simplificada: busca global (Ctrl+K), nome/cargo do usuário, "Sair".
+- `DashboardPage.tsx` ganhou uma linha de **cards de indicador coloridos** (Chegadas hoje, Saídas hoje, Ocupação, Disponíveis) no topo da página, no mesmo espírito da referência, sem duplicar consultas (reaproveita os dados já calculados pra essa página).
+
+**Deploy no Netlify** — o sistema agora está publicado e acessível de qualquer computador ou celular:
+- URL de produção: **https://gustavo-hotelflow-pms.netlify.app**
+- `netlify.toml` (novo, na raiz) define o comando de build (`pnpm build`), a pasta de publicação (`dist`) e uma regra de redirecionamento (`/* → /index.html`) necessária porque o sistema usa rotas do lado do cliente (React Router) — sem essa regra, atualizar a página em qualquer rota que não seja a inicial (ex.: `/reservas`) resultaria em 404.
+- Deploy contínuo configurado: o site Netlify está linkado ao repositório `pgugas37/pms-hoteleiro`, branch `main` — todo `git push` gera um novo deploy automaticamente.
+- **Pegadinha encontrada:** ao criar o site via API antes de ele ter qualquer deploy, as variáveis de ambiente (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) setadas por essa via não persistiram — o primeiro deploy subiu com a tela em branco e o erro "Variáveis não configuradas" no console. Precisaram ser recadastradas manualmente pela interface do Netlify (Project configuration → Environment variables) e um novo deploy disparado ("Deploy project without cache") pra pegar as variáveis corretamente. **Vale lembrar disso caso o site precise ser recriado no futuro:** cadastrar as env vars só depois que o repositório estiver linkado, ou conferir na interface que elas realmente persistiram antes de considerar o deploy pronto.
+- Controle de acesso do Netlify (login obrigatório da equipe/SSO pra ver o site) foi desligado — quem controla o acesso ao sistema é o próprio login (Supabase Auth), não o Netlify.
+
+**Correção: mensagem de erro ao excluir reserva** — o botão "Excluir" (reservas canceladas/finalizadas, só admin) falhava com uma mensagem genérica quando a reserva tinha pagamentos vinculados no financeiro (o banco bloqueia essa exclusão de propósito, com `ON DELETE RESTRICT` na FK de `payments.reservation_id`, pra não sumir com histórico financeiro sem querer). A mensagem de erro agora identifica esse caso especificamente (código Postgres `23503`) e orienta a excluir os pagamentos da reserva primeiro, na aba Financeiro → Histórico de pagamentos.
+
+Testado rodando local (layout) e em produção (deploy e exclusão de reserva com pagamento vinculado).
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.
@@ -404,5 +424,10 @@ O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-
 27. ~~Especificar e implementar o Módulo 25 (Lembretes automáticos — chegada de amanhã e aniversário de hóspede).~~ **Concluído e validado.**
 28. ~~Especificar e implementar o Módulo 26 (Motivo de cancelamento / no-show).~~ **Concluído e validado.**
 29. ~~Especificar e implementar o Módulo 27 (Relatório mensal consolidado).~~ **Concluído e validado.**
+30. ~~Redesenhar o layout (menu lateral, cards de indicador coloridos) a partir de uma referência visual do Gustavo.~~ **Concluído e validado.**
+31. ~~Publicar o sistema no Netlify com deploy contínuo a partir do GitHub.~~ **Concluído — https://gustavo-hotelflow-pms.netlify.app**
+32. ~~Corrigir mensagem de erro ao excluir reserva com pagamento vinculado.~~ **Concluído e validado.**
 
-A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto, o Módulo 19 deu uma visão visual da ocupação dos 49 quartos ao longo dos próximos dias, o Módulo 20 trouxe indicadores de gestão (taxa de ocupação, diária média e RevPAR) pra tela Financeiro, o Módulo 21 deu conformidade com a exigência legal brasileira de registro de hóspede (FNRH), o Módulo 22 deu flexibilidade de precificação por período (alta temporada, feriados), o Módulo 23 deu rastreabilidade sobre quem mexeu em reservas e pagamentos, o Módulo 24 economiza cliques no dia a dia (achar rápido um hóspede/quarto/reserva de qualquer tela, sem navegar e refiltrar), o Módulo 25 dá à equipe um aviso antecipado de chegadas e um toque de hospitalidade (aniversário de hóspede), o Módulo 26 dá visibilidade sobre no-show x cancelamento avisado, sem automatizar cobrança de multa, e o Módulo 27 dá um fechamento mensal consolidado, pronto pra revisar ou exportar em PDF. A escolha dos próximos módulos continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).
+A sequência Quartos → Hóspedes → Reservas definida pelo Gustavo está completa, os Módulos 08–10 fecharam o ciclo operacional do quarto (reserva → check-in/check-out → limpeza → manutenção quando necessário), o Módulo 11 deu função a todos os papéis do RBAC, o Módulo 12 resolveu a limitação de período/busca, o Módulo 13 permitiu tirar os dados do sistema (CSV), o Módulo 14 deu visibilidade ao histórico de hóspedes recorrentes, o Módulo 15 deu ao Dashboard uma visão operacional do dia (chegadas, saídas e atrasos), o Módulo 16 deu ao Financeiro um comprovante formal em PDF, o Módulo 17 deu à equipe um histórico de observações por quarto/hóspede, o Módulo 18 resolveu o fluxo de reserva em grupo pra empresas que reservam vários quartos, com controle de qual hóspede fica em qual quarto, o Módulo 19 deu uma visão visual da ocupação dos 49 quartos ao longo dos próximos dias, o Módulo 20 trouxe indicadores de gestão (taxa de ocupação, diária média e RevPAR) pra tela Financeiro, o Módulo 21 deu conformidade com a exigência legal brasileira de registro de hóspede (FNRH), o Módulo 22 deu flexibilidade de precificação por período (alta temporada, feriados), o Módulo 23 deu rastreabilidade sobre quem mexeu em reservas e pagamentos, o Módulo 24 economiza cliques no dia a dia (achar rápido um hóspede/quarto/reserva de qualquer tela, sem navegar e refiltrar), o Módulo 25 dá à equipe um aviso antecipado de chegadas e um toque de hospitalidade (aniversário de hóspede), o Módulo 26 dá visibilidade sobre no-show x cancelamento avisado, sem automatizar cobrança de multa, e o Módulo 27 dá um fechamento mensal consolidado, pronto pra revisar ou exportar em PDF.
+
+Com o redesign de layout e o deploy no Netlify, o projeto está funcionalmente completo e acessível de qualquer dispositivo. Itens em aberto, sem urgência: o aviso de bundle grande no `pnpm build` (code-splitting) é só uma otimização de performance, não um problema funcional. A escolha de novos módulos, se surgir necessidade, continua a critério do Claude (definido pelo Gustavo a partir do Módulo 09).

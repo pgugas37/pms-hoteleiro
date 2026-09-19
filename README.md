@@ -29,6 +29,14 @@ pnpm dev
 
 Abra o endereço que aparecer no terminal (normalmente `http://localhost:5173`). A página inicial confirma a conexão com o Supabase.
 
+## Deploy
+
+O sistema está publicado no Netlify e acessível de qualquer computador ou celular:
+
+**https://gustavo-hotelflow-pms.netlify.app**
+
+Deploy contínuo: todo `git push` na branch `main` gera um novo deploy automaticamente (configuração em `netlify.toml`).
+
 ## Status
 
 Veja [`docs/STATUS.md`](./docs/STATUS.md) para o histórico de decisões, módulos concluídos e próximos passos.
@@ -62,5 +70,6 @@ Veja [`docs/STATUS.md`](./docs/STATUS.md) para o histórico de decisões, módul
 - [x] Módulo 25 — Lembretes automáticos (chegada de amanhã e aniversário de hóspede) (concluído e validado)
 - [x] Módulo 26 — Motivo de cancelamento / no-show (concluído e validado)
 - [x] Módulo 27 — Relatório mensal consolidado (concluído e validado)
+- [x] Finalização — Layout (menu lateral) e deploy no Netlify (concluído e validado)
 
 > O schema do banco (Módulos 01 e 02) já está aplicado no Supabase. O código do frontend está sendo reconstruído neste repositório a partir do zero, usando o schema existente como referência.
