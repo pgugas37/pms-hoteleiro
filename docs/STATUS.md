@@ -400,7 +400,9 @@ Feita em 18/10/2026 a pedido do Gustavo ("layout mais bonito, atrativo e com car
 
 Testado rodando local contra o Supabase de verdade: `pnpm build` completo (tsc + vite) sem erros; login e telas públicas em desktop e celular; as 12 telas internas abrem com dados e sem erro no console; Dashboard, Reservas, Mapa, Quartos, Financeiro e busca global conferidos visualmente em 1100, 1366 e 1440px; nenhuma tela passa da largura em celular (375px); menu-gaveta abre e fecha. O `pnpm lint` acusa 2 erros que já existiam antes (interface vazia em `ui/input.tsx` e `require()` no `tailwind.config.ts`), não relacionados à repaginação.
 
-**Pendente:** esta pasta não tem `.git` — as mudanças ainda não foram para o GitHub, então o site no Netlify continua com o visual antigo até o push na `main`.
+**Publicado** em 18/10/2026: commit `67c16cb` na `main` (a pasta local foi ligada ao `origin` antes; conferido que o conteúdo do zip era idêntico à `main` do GitHub, então nada foi sobrescrito). O Netlify fez o deploy automático e o site em produção já abre com o visual novo. O push pediu login do GitHub pelo navegador (Git Credential Manager) — rodar `git push` num terminal interativo.
+
+**Conferir no Supabase:** em Authentication → URL Configuration → Redirect URLs, incluir `https://gustavo-hotelflow-pms.netlify.app/redefinir-senha` para o "Esqueci minha senha" do site publicado cair direto na tela de definir senha.
 
 ## Código do frontend
 
