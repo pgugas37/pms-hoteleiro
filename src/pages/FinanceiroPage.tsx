@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { useConfirm } from '@/components/ConfirmDialog'
 import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -212,6 +213,7 @@ export function FinanceiroPage() {
   const canManage = !!profile && PAGE_ROLES.includes(profile.role)
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
 
   const [periodMode, setPeriodMode] = React.useState<PeriodMode>('tudo')
   const [customStart, setCustomStart] = React.useState('')
@@ -620,10 +622,16 @@ export function FinanceiroPage() {
                               <Button
                                 variant="destructive"
                                 size="sm"
-                                onClick={() => {
-                                  if (window.confirm('Excluir este pagamento? Essa ação não pode ser desfeita.')) {
-                                    deletePayment.mutate(payment.id)
-                                  }
+                                onClick={async () => {
+                                  const ok = await confirm({
+                                    title: 'Excluir este pagamento?',
+                                    description: `${formatCurrency(Number(payment.amount))} de ${
+                                      payment.reservations?.guests?.full_name ?? 'hóspede'
+                                    }. O saldo da reserva volta a aumentar e não dá para desfazer.`,
+                                    confirmLabel: 'Excluir pagamento',
+                                    destructive: true,
+                                  })
+                                  if (ok) deletePayment.mutate(payment.id)
                                 }}
                               >
                                 Excluir

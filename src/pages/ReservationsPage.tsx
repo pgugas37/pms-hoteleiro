@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { GuestDialog } from '@/components/GuestDialog'
+import { useConfirm } from '@/components/ConfirmDialog'
 import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -155,6 +156,7 @@ export function ReservationsPage() {
   const isStaff = !!profile && STAFF_ROLES.includes(profile.role)
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [searchParams] = useSearchParams()
 
   const [search, setSearch] = React.useState(() => searchParams.get('q') ?? '')
@@ -432,14 +434,16 @@ export function ReservationsPage() {
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={() => {
-                                if (
-                                  window.confirm(
-                                    'Excluir definitivamente esta reserva? Essa ação não pode ser desfeita.'
-                                  )
-                                ) {
-                                  deleteReservation.mutate(reservation.id)
-                                }
+                              onClick={async () => {
+                                const ok = await confirm({
+                                  title: 'Excluir esta reserva?',
+                                  description: `${reservation.guests?.full_name ?? 'Hóspede'}, quarto ${
+                                    reservation.rooms?.number ?? '—'
+                                  }. A reserva sai do sistema de vez e não dá para desfazer.`,
+                                  confirmLabel: 'Excluir reserva',
+                                  destructive: true,
+                                })
+                                if (ok) deleteReservation.mutate(reservation.id)
                               }}
                             >
                               Excluir

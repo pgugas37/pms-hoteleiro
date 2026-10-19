@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 
 import { GuestDialog } from '@/components/GuestDialog'
 import { NotesDialog } from '@/components/NotesDialog'
+import { useConfirm } from '@/components/ConfirmDialog'
 import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -63,6 +64,7 @@ export function GuestsPage() {
   const isStaff = !!profile && STAFF_ROLES.includes(profile.role)
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [searchParams] = useSearchParams()
   const [search, setSearch] = React.useState(() => searchParams.get('q') ?? '')
 
@@ -180,11 +182,16 @@ export function GuestsPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
+                            onClick={async () => {
                               const action = guest.active ? 'Inativar' : 'Reativar'
-                              if (window.confirm(`${action} o hóspede "${guest.full_name}"?`)) {
-                                toggleActive.mutate({ id: guest.id, active: !guest.active })
-                              }
+                              const ok = await confirm({
+                                title: `${action} ${guest.full_name}?`,
+                                description: guest.active
+                                  ? 'O cadastro e o histórico continuam guardados, mas o hóspede não aparece mais na hora de criar reservas.'
+                                  : 'O hóspede volta a aparecer na hora de criar reservas.',
+                                confirmLabel: `${action} hóspede`,
+                              })
+                              if (ok) toggleActive.mutate({ id: guest.id, active: !guest.active })
                             }}
                           >
                             {guest.active ? 'Inativar' : 'Reativar'}

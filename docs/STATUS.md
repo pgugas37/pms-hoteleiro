@@ -404,6 +404,16 @@ Testado rodando local contra o Supabase de verdade: `pnpm build` completo (tsc +
 
 **Conferir no Supabase:** em Authentication → URL Configuration → Redirect URLs, incluir `https://gustavo-hotelflow-pms.netlify.app/redefinir-senha` para o "Esqueci minha senha" do site publicado cair direto na tela de definir senha.
 
+## Correção — botões "Excluir" sem efeito ✅
+
+Relatado pelo Gustavo em 19/10/2026 ("não estou conseguindo apagar as reservas"). Investigação: os registros do Supabase não mostravam nenhum pedido de exclusão, ou seja, o clique nem chegava ao servidor. Causa: as confirmações usavam `window.confirm`, e o navegador embutido do app Claude (onde ele estava usando o sistema) não mostra essa caixa nativa e devolve "cancelar" na hora (testado: retorno `false` em 1 ms). O mesmo vale para navegadores que bloqueiam pop-ups.
+
+- Novo `src/components/ConfirmDialog.tsx` (`ConfirmProvider` em `App.tsx` + hook `useConfirm()`, que devolve uma Promise): janela de confirmação do próprio sistema, com título, explicação do que acontece e botão com o verbo da ação.
+- Trocadas as 7 confirmações nativas: excluir reserva, pagamento, quarto, tipo de quarto, tarifa sazonal, observação interna, e inativar/reativar hóspede.
+- Regra de negócio não mudou: reserva com pagamento vinculado continua bloqueada no banco (`ON DELETE RESTRICT`) e a tela orienta excluir os pagamentos antes, em Financeiro → Histórico de pagamentos. Em 19/10/2026 havia 6 reservas canceladas (sem pagamento, podem ser excluídas direto) e 28 finalizadas, todas com pagamento.
+
+Testado local: a janela abre no navegador do app, "Voltar" fecha sem enviar nada ao banco; `pnpm build` sem erros.
+
 ## Código do frontend
 
 O código do frontend dos Módulos 01 e 02 foi entregue anteriormente como `pms-hoteleiro-modulo-02.zip`, mas esse arquivo não foi localizado no computador do Gustavo nesta retomada. Decisão: **reconstruir o frontend do zero neste repositório**, usando o schema já aplicado no Supabase (acima) como fonte da verdade — nada foi perdido no banco, só o código-fonte do cliente.

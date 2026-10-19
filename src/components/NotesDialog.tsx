@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { useConfirm } from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -49,6 +50,7 @@ export function NotesDialog({
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [open, setOpen] = React.useState(false)
   const queryKey = ['internal-notes', subjectType, subjectId]
 
@@ -145,8 +147,14 @@ export function NotesDialog({
                     <button
                       type="button"
                       className="text-xs text-destructive hover:underline"
-                      onClick={() => {
-                        if (window.confirm('Excluir esta observação?')) deleteNote.mutate(note.id)
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: 'Excluir esta observação?',
+                          description: 'Ela sai do histórico e não dá para desfazer.',
+                          confirmLabel: 'Excluir observação',
+                          destructive: true,
+                        })
+                        if (ok) deleteNote.mutate(note.id)
                       }}
                     >
                       Excluir

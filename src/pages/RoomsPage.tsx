@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { NotesDialog } from '@/components/NotesDialog'
+import { useConfirm } from '@/components/ConfirmDialog'
 import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -73,6 +74,7 @@ export function RoomsPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
+  const confirm = useConfirm()
   const [searchParams] = useSearchParams()
   const [roomSearch, setRoomSearch] = React.useState(() => searchParams.get('q') ?? '')
 
@@ -187,10 +189,14 @@ export function RoomsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            if (window.confirm(`Excluir o tipo de quarto "${type.name}"?`)) {
-                              deleteRoomType.mutate(type.id)
-                            }
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: `Excluir o tipo "${type.name}"?`,
+                              description: 'Só é possível excluir um tipo que não tenha quartos vinculados.',
+                              confirmLabel: 'Excluir tipo',
+                              destructive: true,
+                            })
+                            if (ok) deleteRoomType.mutate(type.id)
                           }}
                         >
                           Excluir
@@ -263,10 +269,14 @@ export function RoomsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            if (window.confirm(`Excluir o quarto "${room.number}"?`)) {
-                              deleteRoom.mutate(room.id)
-                            }
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: `Excluir o quarto ${room.number}?`,
+                              description: 'O quarto sai do cadastro e não dá para desfazer.',
+                              confirmLabel: 'Excluir quarto',
+                              destructive: true,
+                            })
+                            if (ok) deleteRoom.mutate(room.id)
                           }}
                         >
                           Excluir
@@ -333,10 +343,15 @@ export function RoomsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            if (window.confirm(`Excluir a tarifa "${rate.label}"?`)) {
-                              deleteSeasonalRate.mutate(rate.id)
-                            }
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: `Excluir a tarifa "${rate.label}"?`,
+                              description:
+                                'Reservas já feitas não mudam. Novas reservas nesse período voltam a usar o preço base do tipo de quarto.',
+                              confirmLabel: 'Excluir tarifa',
+                              destructive: true,
+                            })
+                            if (ok) deleteSeasonalRate.mutate(rate.id)
                           }}
                         >
                           Excluir
