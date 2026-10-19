@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss'
+import defaultTheme from 'tailwindcss/defaultTheme'
 
 export default {
   darkMode: ['class'],
@@ -10,6 +11,10 @@ export default {
       screens: { '2xl': '1400px' },
     },
     extend: {
+      fontFamily: {
+        sans: ['"Public Sans"', ...defaultTheme.fontFamily.sans],
+        display: ['Saira', '"Public Sans"', ...defaultTheme.fontFamily.sans],
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
@@ -44,8 +49,29 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        pine: {
+          DEFAULT: 'hsl(var(--pine))',
+          soft: 'hsl(var(--pine-soft))',
+        },
+        mint: {
+          DEFAULT: 'hsl(var(--mint))',
+          strong: 'hsl(var(--mint-strong))',
+        },
+        status: {
+          free: 'hsl(var(--status-free))',
+          occupied: 'hsl(var(--status-occupied))',
+          confirmed: 'hsl(var(--status-confirmed))',
+          cleaning: 'hsl(var(--status-cleaning))',
+          maintenance: 'hsl(var(--status-maintenance))',
+          inactive: 'hsl(var(--status-inactive))',
+        },
+        sidebar: {
+          DEFAULT: 'hsl(var(--sidebar))',
+          foreground: 'hsl(var(--sidebar-foreground))',
+        },
       },
       borderRadius: {
+        xl: 'calc(var(--radius) + 4px)',
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',

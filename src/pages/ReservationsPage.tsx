@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { GuestDialog } from '@/components/GuestDialog'
+import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -25,9 +26,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/lib/auth-context'
-import { formatCurrency } from '@/lib/format'
+import { compareRoomNumbers, formatCurrency, toLocalIsoDate } from '@/lib/format'
 import { fetchHotel } from '@/lib/hotel'
 import { generateGuestRegistrationPdf } from '@/lib/registration'
+import { reservationStatusVariant } from '@/lib/status'
 import { supabase } from '@/lib/supabase'
 import { groupReservationSchema, reservationSchema, type GroupReservationInput, type ReservationInput } from '@/lib/validations'
 import type { Role } from '@/types/auth'
@@ -78,7 +80,7 @@ async function fetchRoomsForSelect(): Promise<RoomOption[]> {
     .select('*, room_types(id, name, base_price)')
     .order('number', { ascending: true })
   if (error) throw error
-  return (data as unknown as RoomOption[]) ?? []
+  return ((data as unknown as RoomOption[]) ?? []).sort((a, b) => compareRoomNumbers(a.number, b.number))
 }
 
 /** Tarifa sazonal (se houver) do tipo de quarto que cobre a data informada — no máximo uma, garantido pelo banco. */
@@ -128,6 +130,17 @@ function errorCode(error: unknown): string | undefined {
   return undefined
 }
 
+/** "06/10 a 08/10/2026" (ano só no fim, a não ser que a estadia atravesse a virada do ano). */
+function formatStayPeriod(checkIn: string, checkOut: string): string {
+  const start = new Date(`${checkIn}T00:00:00`)
+  const end = new Date(`${checkOut}T00:00:00`)
+  const startLabel =
+    start.getFullYear() === end.getFullYear()
+      ? start.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      : start.toLocaleDateString('pt-BR')
+  return `${startLabel} a ${end.toLocaleDateString('pt-BR')}`
+}
+
 /** Mensagens de erro lançadas com `raise exception` nas funções RPC (checkin/checkout/cancel) chegam em `error.message`. */
 function rpcErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === 'object' && error !== null && 'message' in error) {
@@ -135,13 +148,6 @@ function rpcErrorMessage(error: unknown, fallback: string): string {
     if (message) return message
   }
   return fallback
-}
-
-function statusBadgeVariant(status: ReservationStatus) {
-  if (status === 'confirmada') return 'default'
-  if (status === 'em_andamento') return 'secondary'
-  if (status === 'cancelada') return 'destructive'
-  return 'outline'
 }
 
 export function ReservationsPage() {
@@ -153,7 +159,7 @@ export function ReservationsPage() {
 
   const [search, setSearch] = React.useState(() => searchParams.get('q') ?? '')
   const [statusFilter, setStatusFilter] = React.useState<ReservationStatus | 'todas'>('todas')
-  const todayStr = React.useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const todayStr = React.useMemo(() => toLocalIsoDate(new Date()), [])
 
   const { data: reservations, isLoading } = useQuery({
     queryKey: ['reservations'],
@@ -270,11 +276,8 @@ export function ReservationsPage() {
   }, [reservations])
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Reservas</h1>
-        <p className="text-sm text-muted-foreground">Reservas de hóspedes em quartos.</p>
-      </div>
+    <div className="page">
+      <PageHeader title="Reservas" description="Reservas, check-in, check-out e lembrete de notas fiscais." />
 
       <Tabs defaultValue="reservas">
         <TabsList>
@@ -291,7 +294,7 @@ export function ReservationsPage() {
 
         <TabsContent value="reservas">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>Reservas</CardTitle>
             <CardDescription>
@@ -303,7 +306,7 @@ export function ReservationsPage() {
             </CardDescription>
           </div>
           {isStaff && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <GroupReservationDialog guests={guests ?? []} rooms={rooms ?? []} />
               <ReservationDialog guests={guests ?? []} rooms={rooms ?? []} />
             </div>
@@ -342,8 +345,7 @@ export function ReservationsPage() {
                 <TableRow>
                   <TableHead>Hóspede</TableHead>
                   <TableHead>Quarto</TableHead>
-                  <TableHead>Check-in</TableHead>
-                  <TableHead>Check-out</TableHead>
+                  <TableHead>Período</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Total</TableHead>
                   {isStaff && <TableHead className="text-right">Ações</TableHead>}
@@ -354,23 +356,27 @@ export function ReservationsPage() {
                   const nights = nightsBetween(reservation.check_in, reservation.check_out)
                   return (
                     <TableRow key={reservation.id}>
-                      <TableCell>
-                        {reservation.guests?.full_name ?? '—'}
+                      <TableCell className="min-w-[180px] max-w-[280px] [overflow-wrap:anywhere]">
+                        <span className="font-medium">{reservation.guests?.full_name ?? '—'}</span>
                         {reservation.occupant_name && (
                           <div className="text-xs text-muted-foreground">Ocupante: {reservation.occupant_name}</div>
                         )}
                       </TableCell>
-                      <TableCell>
-                        {reservation.rooms?.number ?? '—'}
+                      <TableCell className="min-w-[130px] max-w-[170px]">
+                        <span className="font-display text-[15px] font-semibold">{reservation.rooms?.number ?? '—'}</span>
                         {reservation.rooms?.room_types?.name && (
-                          <span className="text-xs text-muted-foreground"> ({reservation.rooms.room_types.name})</span>
+                          <div className="text-xs text-muted-foreground">{reservation.rooms.room_types.name}</div>
                         )}
                       </TableCell>
-                      <TableCell>{new Date(`${reservation.check_in}T00:00:00`).toLocaleDateString('pt-BR')}</TableCell>
-                      <TableCell>{new Date(`${reservation.check_out}T00:00:00`).toLocaleDateString('pt-BR')}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {formatStayPeriod(reservation.check_in, reservation.check_out)}
+                        <div className="text-xs text-muted-foreground">
+                          {nights} noite{nights !== 1 ? 's' : ''}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-1">
-                          <Badge variant={statusBadgeVariant(reservation.status)}>
+                          <Badge variant={reservationStatusVariant(reservation.status)}>
                             {RESERVATION_STATUS_LABELS[reservation.status]}
                           </Badge>
                           {reservation.status === 'confirmada' && reservation.check_in < todayStr && (
@@ -385,7 +391,9 @@ export function ReservationsPage() {
                       </TableCell>
                       <TableCell>{formatCurrency(reservation.daily_rate * nights)}</TableCell>
                       {isStaff && (
-                        <TableCell className="space-x-2 text-right">
+                        <TableCell>
+                          {/* Em telas mais estreitas quebra em no máximo duas linhas, sem esconder a coluna. */}
+                          <div className="ml-auto flex min-w-[250px] flex-wrap justify-end gap-1.5">
                           <ReservationDialog reservation={reservation} guests={guests ?? []} rooms={rooms ?? []} />
                           <Button
                             variant="outline"
@@ -437,6 +445,7 @@ export function ReservationsPage() {
                               Excluir
                             </Button>
                           )}
+                          </div>
                         </TableCell>
                       )}
                     </TableRow>

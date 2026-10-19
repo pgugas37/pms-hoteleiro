@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import * as React from 'react'
 
+import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,9 +25,9 @@ async function fetchAuditLog(): Promise<AuditLogEntry[]> {
 }
 
 function actionBadgeVariant(action: string) {
-  if (action === 'create') return 'default'
+  if (action === 'create') return 'success'
   if (action === 'delete') return 'destructive'
-  return 'secondary'
+  return 'info'
 }
 
 export function AuditPage() {
@@ -55,14 +56,11 @@ export function AuditPage() {
   }, [entries, entityFilter, actionFilter])
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Auditoria</h1>
-        <p className="text-sm text-muted-foreground">
-          Histórico de criações, edições e exclusões de usuários, dados do hotel, reservas e pagamentos — os últimos{' '}
-          {LOG_LIMIT} registros. Só admin tem acesso a esta tela.
-        </p>
-      </div>
+    <div className="page">
+      <PageHeader
+        title="Auditoria"
+        description={`Criações, edições e exclusões de usuários, dados do hotel, reservas e pagamentos. Mostra os últimos ${LOG_LIMIT} registros e só o administrador tem acesso.`}
+      />
 
       <Card>
         <CardHeader>

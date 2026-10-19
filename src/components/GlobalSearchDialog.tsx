@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
+import { BedDouble, ClipboardList, Search, Users, type LucideIcon } from 'lucide-react'
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { reservationStatusVariant, roomStatusVariant } from '@/lib/status'
 import { supabase } from '@/lib/supabase'
 import { DOCUMENT_TYPE_LABELS, type DocumentType } from '@/types/guest'
 import { RESERVATION_STATUS_LABELS, type ReservationStatus } from '@/types/reservation'
@@ -94,11 +95,19 @@ async function fetchGlobalSearch(term: string): Promise<GlobalSearchResults> {
   return { guests, rooms, reservations }
 }
 
-function statusBadgeVariant(status: ReservationStatus) {
-  if (status === 'confirmada') return 'default'
-  if (status === 'em_andamento') return 'secondary'
-  if (status === 'cancelada') return 'destructive'
-  return 'outline'
+const RESULT_BUTTON_CLASS =
+  'flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none'
+
+function ResultGroup({ icon: Icon, label, children }: { icon: LucideIcon; label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <p className="flex items-center gap-1.5 px-3 text-xs font-semibold text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </p>
+      {children}
+    </div>
+  )
 }
 
 /**
@@ -152,97 +161,108 @@ export function GlobalSearchDialog() {
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-2">
-        Buscar
-        <kbd className="hidden rounded border bg-muted px-1.5 py-0.5 text-xs text-muted-foreground sm:inline">
-          Ctrl+K
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Buscar hóspede, quarto ou reserva"
+        className="flex h-9 w-full max-w-sm items-center gap-2 rounded-lg border border-input bg-card px-3 text-sm text-muted-foreground transition-colors hover:border-pine/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Search className="h-4 w-4 shrink-0" />
+        <span className="flex-1 truncate text-left">
+          <span className="hidden sm:inline">Buscar hóspede, quarto ou reserva</span>
+          <span className="sm:hidden">Buscar</span>
+        </span>
+        <kbd className="hidden rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[11px] font-medium sm:inline">
+          Ctrl K
         </kbd>
-      </Button>
+      </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="top-[12%] max-h-[76vh] translate-y-0 gap-3 p-0 sm:max-w-xl">
+          <DialogHeader className="sr-only">
             <DialogTitle>Busca global</DialogTitle>
-            <DialogDescription>Hóspedes, quartos e reservas — tudo de uma vez.</DialogDescription>
+            <DialogDescription>Encontre hóspedes, quartos e reservas de qualquer tela.</DialogDescription>
           </DialogHeader>
 
-          <Input
-            autoFocus
-            placeholder="Nome, documento ou número do quarto..."
-            value={term}
-            onChange={(e) => setTerm(e.target.value)}
-          />
+          <div className="flex items-center gap-2 border-b px-4 pr-12">
+            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Input
+              autoFocus
+              placeholder="Nome, documento ou número do quarto"
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+              className="h-12 border-0 bg-transparent px-0 text-base shadow-none hover:border-0 focus-visible:ring-0"
+            />
+          </div>
 
-          <div className="space-y-4">
-            {trimmed.length > 0 && trimmed.length < 2 && (
-              <p className="text-sm text-muted-foreground">Digite ao menos 2 caracteres.</p>
+          <div className="space-y-4 px-2 pb-3">
+            {trimmed.length === 0 && (
+              <p className="px-3 py-2 text-sm text-muted-foreground">
+                Digite o nome ou documento do hóspede, ou o número do quarto.
+              </p>
             )}
-            {isFetching && <p className="text-sm text-muted-foreground">Buscando...</p>}
+            {trimmed.length > 0 && trimmed.length < 2 && (
+              <p className="px-3 py-2 text-sm text-muted-foreground">Digite pelo menos 2 caracteres.</p>
+            )}
+            {isFetching && <p className="px-3 py-2 text-sm text-muted-foreground">Buscando...</p>}
             {!isFetching && trimmed.length >= 2 && !hasResults && (
-              <p className="text-sm text-muted-foreground">Nenhum resultado para "{trimmed}".</p>
+              <p className="px-3 py-2 text-sm text-muted-foreground">
+                Nada encontrado para "{trimmed}". Confira a grafia ou busque pelo documento.
+              </p>
             )}
 
             {results && results.guests.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-xs font-medium uppercase text-muted-foreground">Hóspedes</p>
+              <ResultGroup icon={Users} label="Hóspedes">
                 {results.guests.map((guest) => (
-                  <button
-                    key={guest.id}
-                    type="button"
-                    onClick={() => goTo('/hospedes')}
-                    className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm hover:bg-muted"
-                  >
-                    <span>{guest.full_name}</span>
+                  <button key={guest.id} type="button" onClick={() => goTo('/hospedes')} className={RESULT_BUTTON_CLASS}>
+                    <span className="font-medium">{guest.full_name}</span>
                     <span className="text-xs text-muted-foreground">
                       {DOCUMENT_TYPE_LABELS[guest.document_type]} {guest.document_number}
                     </span>
                   </button>
                 ))}
-              </div>
+              </ResultGroup>
             )}
 
             {results && results.rooms.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-xs font-medium uppercase text-muted-foreground">Quartos</p>
+              <ResultGroup icon={BedDouble} label="Quartos">
                 {results.rooms.map((room) => (
-                  <button
-                    key={room.id}
-                    type="button"
-                    onClick={() => goTo('/quartos')}
-                    className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm hover:bg-muted"
-                  >
+                  <button key={room.id} type="button" onClick={() => goTo('/quartos')} className={RESULT_BUTTON_CLASS}>
                     <span>
-                      Quarto {room.number}
-                      {room.room_types?.name ? ` · ${room.room_types.name}` : ''}
+                      <span className="font-display font-semibold">Quarto {room.number}</span>
+                      {room.room_types?.name && (
+                        <span className="ml-2 text-xs text-muted-foreground">{room.room_types.name}</span>
+                      )}
                     </span>
-                    <Badge variant="outline">{ROOM_STATUS_LABELS[room.status]}</Badge>
+                    <Badge variant={roomStatusVariant(room.status)}>{ROOM_STATUS_LABELS[room.status]}</Badge>
                   </button>
                 ))}
-              </div>
+              </ResultGroup>
             )}
 
             {results && results.reservations.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-xs font-medium uppercase text-muted-foreground">Reservas</p>
+              <ResultGroup icon={ClipboardList} label="Reservas">
                 {results.reservations.map((reservation) => (
                   <button
                     key={reservation.id}
                     type="button"
                     onClick={() => goTo('/reservas')}
-                    className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm hover:bg-muted"
+                    className={RESULT_BUTTON_CLASS}
                   >
-                    <span>
-                      {reservation.guests?.full_name ?? '—'} · Quarto {reservation.rooms?.number ?? '—'}
-                      <span className="ml-1 text-xs text-muted-foreground">
-                        ({new Date(`${reservation.check_in}T00:00:00`).toLocaleDateString('pt-BR')} –{' '}
-                        {new Date(`${reservation.check_out}T00:00:00`).toLocaleDateString('pt-BR')})
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">
+                        {reservation.guests?.full_name ?? '—'}, quarto {reservation.rooms?.number ?? '—'}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(`${reservation.check_in}T00:00:00`).toLocaleDateString('pt-BR')} a{' '}
+                        {new Date(`${reservation.check_out}T00:00:00`).toLocaleDateString('pt-BR')}
                       </span>
                     </span>
-                    <Badge variant={statusBadgeVariant(reservation.status)}>
+                    <Badge variant={reservationStatusVariant(reservation.status)}>
                       {RESERVATION_STATUS_LABELS[reservation.status]}
                     </Badge>
                   </button>
                 ))}
-              </div>
+              </ResultGroup>
             )}
           </div>
         </DialogContent>

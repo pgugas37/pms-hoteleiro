@@ -3,11 +3,13 @@ import * as React from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/lib/auth-context'
+import { passwordUpdateErrorMessage } from '@/lib/authErrors'
 import { supabase } from '@/lib/supabase'
 import { newPasswordSchema, type NewPasswordInput } from '@/lib/validations'
 import { ROLE_LABELS } from '@/types/auth'
@@ -29,7 +31,7 @@ export function TrocarSenhaPage() {
     setSubmitting(false)
 
     if (error) {
-      toast.error('Não foi possível trocar a senha.')
+      toast.error(passwordUpdateErrorMessage(error, 'Não foi possível trocar a senha.'))
       return
     }
 
@@ -38,16 +40,12 @@ export function TrocarSenhaPage() {
   }
 
   return (
-    <div className="mx-auto max-w-sm space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Minha conta</h1>
-        {profile && (
-          <p className="text-sm text-muted-foreground">
-            {profile.full_name} · {ROLE_LABELS[profile.role]}
-          </p>
-        )}
-      </div>
-      <Card>
+    <div className="page">
+      <PageHeader
+        title="Minha conta"
+        description={profile ? `${profile.full_name}, ${ROLE_LABELS[profile.role]}` : undefined}
+      />
+      <Card className="max-w-md">
         <CardHeader>
           <CardTitle>Trocar senha</CardTitle>
           <CardDescription>Defina uma nova senha para sua conta.</CardDescription>

@@ -1,9 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import * as React from 'react'
 
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { compareRoomNumbers, toLocalIsoDate } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
+import { cn } from '@/lib/utils'
 import type { ReservationStatus } from '@/types/reservation'
 import type { RoomWithType } from '@/types/room'
 
@@ -18,9 +22,7 @@ interface MapReservation {
   guests: { full_name: string } | null
 }
 
-function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10)
-}
+const toIsoDate = toLocalIsoDate
 
 function addDays(isoDate: string, amount: number): string {
   const date = new Date(`${isoDate}T00:00:00`)
@@ -34,7 +36,7 @@ async function fetchRooms(): Promise<RoomWithType[]> {
     .select('*, room_types(id, name)')
     .order('number', { ascending: true })
   if (error) throw error
-  return (data as unknown as RoomWithType[]) ?? []
+  return ((data as unknown as RoomWithType[]) ?? []).sort((a, b) => compareRoomNumbers(a.number, b.number))
 }
 
 async function fetchWindowReservations(start: string, end: string): Promise<MapReservation[]> {
@@ -76,48 +78,60 @@ export function OccupancyMapPage() {
   const isLoading = loadingRooms || loadingReservations
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Mapa de ocupação</h1>
-        <p className="text-sm text-muted-foreground">Visão dos quartos ao longo dos próximos dias.</p>
-      </div>
+    <div className="page">
+      <PageHeader
+        title="Mapa de ocupação"
+        description="Reservas confirmadas e em andamento de cada quarto, dia a dia."
+        actions={
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setStartDate((d) => addDays(d, -DAYS_IN_WINDOW))}
+              aria-label={`Voltar ${DAYS_IN_WINDOW} dias`}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" onClick={() => setStartDate(todayIso)}>
+              Hoje
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setStartDate((d) => addDays(d, DAYS_IN_WINDOW))}
+              aria-label={`Avançar ${DAYS_IN_WINDOW} dias`}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        }
+      />
 
       <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between space-y-0">
-          <div>
+        <CardHeader className="flex flex-col gap-3 space-y-0 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-1">
             <CardTitle>
               {new Date(`${startDate}T00:00:00`).toLocaleDateString('pt-BR')} a{' '}
               {new Date(`${addDays(startDate, DAYS_IN_WINDOW - 1)}T00:00:00`).toLocaleDateString('pt-BR')}
             </CardTitle>
-            <CardDescription>
-              Considera reservas confirmadas e em andamento. Não reflete quartos em limpeza ou manutenção (isso é o
-              status atual do quarto, não uma previsão por dia — veja a tela Quartos).
+            <CardDescription className="max-w-2xl">
+              Quartos em limpeza ou manutenção não aparecem aqui, porque isso é a situação atual do quarto e não uma
+              previsão por dia. Para isso, veja a tela Quartos.
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setStartDate((d) => addDays(d, -DAYS_IN_WINDOW))}>
-              ← {DAYS_IN_WINDOW} dias
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setStartDate(todayIso)}>
-              Hoje
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setStartDate((d) => addDays(d, DAYS_IN_WINDOW))}>
-              {DAYS_IN_WINDOW} dias →
-            </Button>
+          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded-[3px] bg-status-confirmed" /> Confirmada
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded-[3px] bg-pine" /> Hospedado
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded-[3px] border border-border bg-muted/60" /> Livre
+            </span>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded-sm bg-primary" /> Confirmada
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded-sm bg-destructive" /> Em andamento (ocupado)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded-sm border border-input" /> Livre
-            </span>
-          </div>
 
           {isLoading && <p className="text-sm text-muted-foreground">Carregando...</p>}
           {!isLoading && (rooms ?? []).length === 0 && (
@@ -125,34 +139,44 @@ export function OccupancyMapPage() {
           )}
 
           {!isLoading && (rooms ?? []).length > 0 && (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-lg border border-border/80">
               <table className="w-full border-collapse text-xs">
                 <thead>
-                  <tr>
-                    <th className="sticky left-0 z-10 border-b bg-background px-2 py-1 text-left font-medium">
+                  <tr className="bg-muted/70">
+                    <th className="sticky left-0 z-10 border-b bg-muted px-3 py-2 text-left font-semibold text-muted-foreground">
                       Quarto
                     </th>
-                    {days.map((day) => (
-                      <th
-                        key={day}
-                        className={`min-w-[34px] border-b px-1 py-1 text-center font-normal ${
-                          day === todayIso ? 'text-foreground font-semibold' : 'text-muted-foreground'
-                        }`}
-                      >
-                        {new Date(`${day}T00:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                      </th>
-                    ))}
+                    {days.map((day) => {
+                      const date = new Date(`${day}T00:00:00`)
+                      const isToday = day === todayIso
+                      return (
+                        <th
+                          key={day}
+                          className={cn(
+                            'min-w-[38px] border-b px-0.5 py-1.5 text-center font-normal leading-tight',
+                            isToday ? 'bg-mint/15 text-foreground' : 'text-muted-foreground'
+                          )}
+                        >
+                          <span className="block text-[10px]">
+                            {date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
+                          </span>
+                          <span className={cn('font-display text-[13px]', isToday && 'font-semibold')}>
+                            {date.toLocaleDateString('pt-BR', { day: '2-digit' })}
+                          </span>
+                        </th>
+                      )
+                    })}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-card">
                   {(rooms ?? []).map((room) => {
                     const roomReservations = reservationsByRoom.get(room.id) ?? []
                     return (
-                      <tr key={room.id}>
-                        <td className="sticky left-0 z-10 whitespace-nowrap border-b bg-background px-2 py-1 font-medium">
-                          {room.number}
+                      <tr key={room.id} className="group">
+                        <td className="sticky left-0 z-10 whitespace-nowrap border-b border-border/60 bg-card px-3 py-1 group-hover:bg-accent">
+                          <span className="font-display text-[13px] font-semibold">{room.number}</span>
                           {room.room_types?.name && (
-                            <span className="text-muted-foreground"> ({room.room_types.name})</span>
+                            <span className="ml-1.5 text-muted-foreground">{room.room_types.name}</span>
                           )}
                         </td>
                         {days.map((day) => {
@@ -162,17 +186,29 @@ export function OccupancyMapPage() {
                                 match.check_in
                               } a ${match.check_out})`
                             : 'Livre'
+                          // Barra contínua por estadia: arredonda só no dia de chegada e na última noite.
+                          const startsHere = match?.check_in === day
+                          const endsHere = !!match && addDays(day, 1) === match.check_out
                           return (
-                            <td key={day} className="border-b px-0.5 py-1 text-center">
+                            <td
+                              key={day}
+                              className={cn(
+                                'border-b border-border/60 px-0 py-1 text-center group-hover:bg-accent/50',
+                                day === todayIso && 'bg-mint/[0.07]'
+                              )}
+                            >
                               <div
                                 title={guestLabel}
-                                className={`mx-auto h-5 w-full rounded-sm ${
+                                className={cn(
+                                  'h-6',
                                   match?.status === 'em_andamento'
-                                    ? 'bg-destructive'
+                                    ? 'bg-pine'
                                     : match?.status === 'confirmada'
-                                      ? 'bg-primary'
-                                      : 'border border-input'
-                                }`}
+                                      ? 'bg-status-confirmed'
+                                      : 'mx-0.5 rounded-[3px] bg-muted/60',
+                                  startsHere && 'ml-0.5 rounded-l-md',
+                                  endsHere && 'mr-0.5 rounded-r-md'
+                                )}
                               />
                             </td>
                           )

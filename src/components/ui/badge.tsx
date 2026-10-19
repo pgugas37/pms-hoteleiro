@@ -4,16 +4,21 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  'inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
   {
     variants: {
       variant: {
-        default: 'border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80',
-        secondary:
-          'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        destructive:
-          'border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80',
-        outline: 'text-foreground',
+        // Positivo/ativo (verde menta da marca)
+        default: 'border-transparent bg-status-free/15 text-mint-strong',
+        // Neutro
+        secondary: 'border-transparent bg-secondary text-secondary-foreground',
+        destructive: 'border-transparent bg-destructive/10 text-destructive',
+        outline: 'border-border bg-transparent text-muted-foreground',
+        // Variantes de status (ver src/lib/status.ts)
+        success: 'border-transparent bg-status-free/15 text-mint-strong',
+        info: 'border-transparent bg-status-confirmed/10 text-status-confirmed',
+        warning: 'border-transparent bg-status-cleaning/15 text-[hsl(30_80%_32%)]',
+        solid: 'border-transparent bg-pine text-primary-foreground',
       },
     },
     defaultVariants: {

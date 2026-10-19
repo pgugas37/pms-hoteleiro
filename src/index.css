@@ -2,50 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Identidade visual (repaginação de layout): cores tiradas da logo do Millenium Hotel.
+ * Pinho #002E2F (menu lateral, botões, texto forte) e Menta #33CB98 (destaques, "livre").
+ * Saira (títulos, números, nº de quarto) ecoa as letras da logo; Public Sans no resto.
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 160 14% 95.5%;
+    --foreground: 182 40% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 182 40% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
-  }
+    --popover-foreground: 182 40% 11%;
+    --primary: 181 100% 9%;
+    --primary-foreground: 160 30% 98%;
+    --secondary: 165 18% 92%;
+    --secondary-foreground: 181 100% 11%;
+    --muted: 165 16% 94%;
+    --muted-foreground: 182 9% 37%;
+    --accent: 160 45% 92%;
+    --accent-foreground: 181 100% 11%;
+    --destructive: 6 68% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 168 14% 86%;
+    --input: 168 12% 80%;
+    --ring: 160 62% 40%;
+    --radius: 0.625rem;
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    /* Marca */
+    --pine: 181 100% 9%;
+    --pine-soft: 181 60% 15%;
+    --mint: 160 60% 50%;
+    --mint-strong: 160 70% 32%;
+
+    /* Status (quartos e reservas) */
+    --status-free: 160 60% 50%;
+    --status-occupied: 181 100% 9%;
+    --status-confirmed: 199 62% 40%;
+    --status-cleaning: 37 88% 52%;
+    --status-maintenance: 6 68% 52%;
+    --status-inactive: 180 5% 62%;
+
+    --sidebar: 181 100% 9%;
+    --sidebar-foreground: 160 20% 92%;
   }
 }
 
@@ -53,7 +53,36 @@
   * {
     @apply border-border;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground antialiased;
+    font-feature-settings: 'tnum' 1;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+  }
+  ::selection {
+    background: hsl(var(--mint) / 0.35);
+  }
+}
+
+@layer components {
+  /* Contêiner padrão de todas as telas internas (alinhado à esquerda, ao lado do menu). */
+  .page {
+    @apply w-full max-w-[1400px] space-y-6 px-4 py-6 md:px-8 md:py-8;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

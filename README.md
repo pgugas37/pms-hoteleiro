@@ -71,5 +71,6 @@ Veja [`docs/STATUS.md`](./docs/STATUS.md) para o histórico de decisões, módul
 - [x] Módulo 26 — Motivo de cancelamento / no-show (concluído e validado)
 - [x] Módulo 27 — Relatório mensal consolidado (concluído e validado)
 - [x] Finalização — Layout (menu lateral) e deploy no Netlify (concluído e validado)
+- [x] Repaginação visual com a identidade do Millenium Hotel + "Esqueci minha senha" no login
 
 > O schema do banco (Módulos 01 e 02) já está aplicado no Supabase. O código do frontend está sendo reconstruído neste repositório a partir do zero, usando o schema existente como referência.

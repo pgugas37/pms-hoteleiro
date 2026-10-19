@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { NotesDialog } from '@/components/NotesDialog'
+import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,7 +24,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '@/lib/auth-context'
-import { formatCurrency } from '@/lib/format'
+import { compareRoomNumbers, formatCurrency } from '@/lib/format'
+import { roomStatusVariant } from '@/lib/status'
 import { supabase } from '@/lib/supabase'
 import {
   roomSchema,
@@ -48,7 +50,7 @@ async function fetchRooms(): Promise<RoomWithType[]> {
     .select('*, room_types(id, name)')
     .order('number', { ascending: true })
   if (error) throw error
-  return (data as unknown as RoomWithType[]) ?? []
+  return ((data as unknown as RoomWithType[]) ?? []).sort((a, b) => compareRoomNumbers(a.number, b.number))
 }
 
 async function fetchSeasonalRates(): Promise<SeasonalRateWithType[]> {
@@ -145,11 +147,8 @@ export function RoomsPage() {
   }, [rooms, roomSearch])
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Quartos</h1>
-        <p className="text-sm text-muted-foreground">Tipos de quarto e unidades do hotel.</p>
-      </div>
+    <div className="page">
+      <PageHeader title="Quartos" description="Tipos de quarto, unidades do hotel e tarifas sazonais." />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -183,7 +182,7 @@ export function RoomsPage() {
                     </TableCell>
                     <TableCell>{formatCurrency(type.base_price)}</TableCell>
                     {isAdmin && (
-                      <TableCell className="space-x-2 text-right">
+                      <TableCell className="space-x-1.5 whitespace-nowrap text-right">
                         <RoomTypeDialog roomType={type} />
                         <Button
                           variant="outline"
@@ -251,17 +250,7 @@ export function RoomsPage() {
                     <TableCell>{room.room_types?.name ?? '—'}</TableCell>
                     <TableCell>{room.floor ?? '—'}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          room.status === 'disponivel'
-                            ? 'default'
-                            : room.status === 'ocupado'
-                              ? 'destructive'
-                              : room.status === 'limpeza' || room.status === 'manutencao'
-                                ? 'secondary'
-                                : 'outline'
-                        }
-                      >
+                      <Badge variant={roomStatusVariant(room.status)}>
                         {ROOM_STATUS_LABELS[room.status]}
                       </Badge>
                     </TableCell>
@@ -269,7 +258,7 @@ export function RoomsPage() {
                       <NotesDialog subjectType="room" subjectId={room.id} subjectLabel={room.number} />
                     </TableCell>
                     {isAdmin && (
-                      <TableCell className="space-x-2 text-right">
+                      <TableCell className="space-x-1.5 whitespace-nowrap text-right">
                         <RoomDialog room={room} roomTypes={roomTypes ?? []} />
                         <Button
                           variant="outline"
@@ -339,7 +328,7 @@ export function RoomsPage() {
                     </TableCell>
                     <TableCell>{formatCurrency(rate.daily_rate)}</TableCell>
                     {isAdmin && (
-                      <TableCell className="space-x-2 text-right">
+                      <TableCell className="space-x-1.5 whitespace-nowrap text-right">
                         <SeasonalRateDialog seasonalRate={rate} roomTypes={roomTypes ?? []} />
                         <Button
                           variant="outline"

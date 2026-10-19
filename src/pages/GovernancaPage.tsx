@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { compareRoomNumbers } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 import type { RoomWithType } from '@/types/room'
 
@@ -14,7 +16,7 @@ async function fetchRoomsAwaitingCleaning(): Promise<RoomWithType[]> {
     .eq('status', 'limpeza')
     .order('number', { ascending: true })
   if (error) throw error
-  return (data as unknown as RoomWithType[]) ?? []
+  return ((data as unknown as RoomWithType[]) ?? []).sort((a, b) => compareRoomNumbers(a.number, b.number))
 }
 
 function rpcErrorMessage(error: unknown, fallback: string): string {
@@ -48,11 +50,11 @@ export function GovernancaPage() {
   })
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Governança</h1>
-        <p className="text-sm text-muted-foreground">Quartos aguardando limpeza depois de um check-out ou cancelamento.</p>
-      </div>
+    <div className="page">
+      <PageHeader
+        title="Governança"
+        description="Quartos aguardando limpeza depois de um check-out ou cancelamento."
+      />
 
       <Card>
         <CardHeader>

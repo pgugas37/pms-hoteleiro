@@ -14,6 +14,11 @@ export const loginSchema = z.object({
 })
 export type LoginInput = z.infer<typeof loginSchema>
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().min(1, 'Informe o e-mail.').email('E-mail inválido.'),
+})
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>
+
 export const bootstrapSchema = z.object({
   full_name: z.string().min(2, 'Informe o nome completo.'),
   email: z.string().min(1, 'Informe o e-mail.').email('E-mail inválido.'),

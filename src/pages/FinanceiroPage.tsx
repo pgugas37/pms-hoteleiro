@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,7 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/lib/auth-context'
 import { downloadCsv } from '@/lib/csv'
-import { formatCurrency } from '@/lib/format'
+import { formatCurrency, toLocalIsoDate } from '@/lib/format'
 import { fetchHotel } from '@/lib/hotel'
 import { generateMonthlyReportPdf } from '@/lib/monthlyReport'
 import { generatePaymentReceiptPdf } from '@/lib/receipt'
@@ -51,9 +52,7 @@ const PERIOD_MODE_LABELS: Record<PeriodMode, string> = {
   personalizado: 'Personalizado',
 }
 
-function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10)
-}
+const toIsoDate = toLocalIsoDate
 
 function addDays(isoDate: string, amount: number): string {
   const date = new Date(`${isoDate}T00:00:00`)
@@ -419,18 +418,15 @@ export function FinanceiroPage() {
 
   if (!canManage) {
     return (
-      <div className="mx-auto max-w-4xl space-y-6 p-6">
+      <div className="page">
         <p className="text-sm text-muted-foreground">Você não tem acesso a esta página.</p>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Financeiro</h1>
-        <p className="text-sm text-muted-foreground">Faturamento das reservas e pagamentos recebidos.</p>
-      </div>
+    <div className="page">
+      <PageHeader title="Financeiro" description="Faturamento das reservas e pagamentos recebidos." />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <Select value={periodMode} onValueChange={(value) => setPeriodMode(value as PeriodMode)}>
@@ -458,19 +454,19 @@ export function FinanceiroPage() {
         <Card>
           <CardHeader className="space-y-0 pb-2">
             <CardDescription>Faturado</CardDescription>
-            <CardTitle className="text-xl">{formatCurrency(summary.faturado)}</CardTitle>
+            <CardTitle className="pt-1 text-[26px]">{formatCurrency(summary.faturado)}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="space-y-0 pb-2">
             <CardDescription>Recebido</CardDescription>
-            <CardTitle className="text-xl">{formatCurrency(summary.recebido)}</CardTitle>
+            <CardTitle className="pt-1 text-[26px]">{formatCurrency(summary.recebido)}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="space-y-0 pb-2">
             <CardDescription>Pendente</CardDescription>
-            <CardTitle className="text-xl">{formatCurrency(summary.pendente)}</CardTitle>
+            <CardTitle className="pt-1 text-[26px]">{formatCurrency(summary.pendente)}</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -525,22 +521,26 @@ export function FinanceiroPage() {
                   <TableBody>
                     {billing.map(({ reservation, total, paid, balance }) => (
                       <TableRow key={reservation.id}>
-                        <TableCell>{reservation.guests?.full_name ?? '—'}</TableCell>
-                        <TableCell>{reservation.rooms?.number ?? '—'}</TableCell>
-                        <TableCell>
-                          {new Date(`${reservation.check_in}T00:00:00`).toLocaleDateString('pt-BR')} –{' '}
+                        <TableCell className="min-w-[160px] max-w-[260px] font-medium [overflow-wrap:anywhere]">
+                          {reservation.guests?.full_name ?? '—'}
+                        </TableCell>
+                        <TableCell className="font-display text-[15px] font-semibold">
+                          {reservation.rooms?.number ?? '—'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {new Date(`${reservation.check_in}T00:00:00`).toLocaleDateString('pt-BR')} a{' '}
                           {new Date(`${reservation.check_out}T00:00:00`).toLocaleDateString('pt-BR')}
                         </TableCell>
-                        <TableCell>{formatCurrency(total)}</TableCell>
-                        <TableCell>{formatCurrency(paid)}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatCurrency(total)}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatCurrency(paid)}</TableCell>
                         <TableCell>
                           {balance <= 0 ? (
                             <Badge>Quitado</Badge>
                           ) : (
-                            <Badge variant={paid > 0 ? 'secondary' : 'outline'}>{formatCurrency(balance)}</Badge>
+                            <Badge variant={paid > 0 ? 'warning' : 'outline'}>{formatCurrency(balance)}</Badge>
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="whitespace-nowrap text-right">
                           <RegisterPaymentDialog
                             reservationId={reservation.id}
                             guestName={reservation.guests?.full_name ?? 'hóspede'}
@@ -596,13 +596,17 @@ export function FinanceiroPage() {
                   <TableBody>
                     {(payments ?? []).map((payment) => (
                       <TableRow key={payment.id}>
-                        <TableCell>{new Date(payment.created_at).toLocaleString('pt-BR')}</TableCell>
-                        <TableCell>{payment.reservations?.guests?.full_name ?? '—'}</TableCell>
-                        <TableCell>{payment.reservations?.rooms?.number ?? '—'}</TableCell>
-                        <TableCell>{formatCurrency(Number(payment.amount))}</TableCell>
+                        <TableCell className="whitespace-nowrap">{new Date(payment.created_at).toLocaleString('pt-BR')}</TableCell>
+                        <TableCell className="min-w-[160px] max-w-[260px] font-medium [overflow-wrap:anywhere]">
+                          {payment.reservations?.guests?.full_name ?? '—'}
+                        </TableCell>
+                        <TableCell className="font-display text-[15px] font-semibold">
+                          {payment.reservations?.rooms?.number ?? '—'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">{formatCurrency(Number(payment.amount))}</TableCell>
                         <TableCell>{PAYMENT_METHOD_LABELS[payment.method]}</TableCell>
                         <TableCell className="text-muted-foreground">{payment.notes ?? '—'}</TableCell>
-                        <TableCell className="space-x-2 text-right">
+                        <TableCell className="space-x-1.5 whitespace-nowrap text-right">
                           <Button
                             variant="outline"
                             size="sm"
@@ -662,19 +666,19 @@ export function FinanceiroPage() {
                     <Card>
                       <CardHeader className="space-y-0 pb-2">
                         <CardDescription>Taxa de ocupação</CardDescription>
-                        <CardTitle className="text-xl">{Math.round(kpi.occupancyRate * 100)}%</CardTitle>
+                        <CardTitle className="pt-1 text-[26px]">{Math.round(kpi.occupancyRate * 100)}%</CardTitle>
                       </CardHeader>
                     </Card>
                     <Card>
                       <CardHeader className="space-y-0 pb-2">
                         <CardDescription>Diária média (ADR)</CardDescription>
-                        <CardTitle className="text-xl">{formatCurrency(kpi.adr)}</CardTitle>
+                        <CardTitle className="pt-1 text-[26px]">{formatCurrency(kpi.adr)}</CardTitle>
                       </CardHeader>
                     </Card>
                     <Card>
                       <CardHeader className="space-y-0 pb-2">
                         <CardDescription>RevPAR</CardDescription>
-                        <CardTitle className="text-xl">{formatCurrency(kpi.revPar)}</CardTitle>
+                        <CardTitle className="pt-1 text-[26px]">{formatCurrency(kpi.revPar)}</CardTitle>
                       </CardHeader>
                     </Card>
                   </div>
@@ -723,19 +727,19 @@ export function FinanceiroPage() {
                   <Card>
                     <CardHeader className="space-y-0 pb-2">
                       <CardDescription>Faturado</CardDescription>
-                      <CardTitle className="text-xl">{formatCurrency(monthlySummary.faturado)}</CardTitle>
+                      <CardTitle className="pt-1 text-[26px]">{formatCurrency(monthlySummary.faturado)}</CardTitle>
                     </CardHeader>
                   </Card>
                   <Card>
                     <CardHeader className="space-y-0 pb-2">
                       <CardDescription>Recebido</CardDescription>
-                      <CardTitle className="text-xl">{formatCurrency(monthlySummary.recebido)}</CardTitle>
+                      <CardTitle className="pt-1 text-[26px]">{formatCurrency(monthlySummary.recebido)}</CardTitle>
                     </CardHeader>
                   </Card>
                   <Card>
                     <CardHeader className="space-y-0 pb-2">
                       <CardDescription>Pendente</CardDescription>
-                      <CardTitle className="text-xl">{formatCurrency(monthlySummary.pendente)}</CardTitle>
+                      <CardTitle className="pt-1 text-[26px]">{formatCurrency(monthlySummary.pendente)}</CardTitle>
                     </CardHeader>
                   </Card>
                 </div>
@@ -748,19 +752,19 @@ export function FinanceiroPage() {
                     <Card>
                       <CardHeader className="space-y-0 pb-2">
                         <CardDescription>Taxa de ocupação</CardDescription>
-                        <CardTitle className="text-xl">{Math.round(monthlyKpi.occupancyRate * 100)}%</CardTitle>
+                        <CardTitle className="pt-1 text-[26px]">{Math.round(monthlyKpi.occupancyRate * 100)}%</CardTitle>
                       </CardHeader>
                     </Card>
                     <Card>
                       <CardHeader className="space-y-0 pb-2">
                         <CardDescription>Diária média (ADR)</CardDescription>
-                        <CardTitle className="text-xl">{formatCurrency(monthlyKpi.adr)}</CardTitle>
+                        <CardTitle className="pt-1 text-[26px]">{formatCurrency(monthlyKpi.adr)}</CardTitle>
                       </CardHeader>
                     </Card>
                     <Card>
                       <CardHeader className="space-y-0 pb-2">
                         <CardDescription>RevPAR</CardDescription>
-                        <CardTitle className="text-xl">{formatCurrency(monthlyKpi.revPar)}</CardTitle>
+                        <CardTitle className="pt-1 text-[26px]">{formatCurrency(monthlyKpi.revPar)}</CardTitle>
                       </CardHeader>
                     </Card>
                   </div>

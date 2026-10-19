@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -96,15 +97,15 @@ export function HotelSettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Configurações do hotel</h1>
-        <p className="text-sm text-muted-foreground">
-          {hotel
-            ? 'Dados cadastrais do hotel.'
-            : 'Nenhum hotel cadastrado ainda. Preencha os dados abaixo para o primeiro cadastro.'}
-        </p>
-      </div>
+    <div className="page max-w-4xl">
+      <PageHeader
+        title="Configurações do hotel"
+        description={
+          hotel
+            ? 'Dados cadastrais do hotel, usados nos recibos, fichas e relatórios em PDF.'
+            : 'Nenhum hotel cadastrado ainda. Preencha os dados abaixo para o primeiro cadastro.'
+        }
+      />
 
       <Card>
         <CardHeader>

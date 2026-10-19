@@ -1,22 +1,36 @@
 import { useQuery } from '@tanstack/react-query'
-import { BedDouble, DoorClosed, DoorOpen, PieChart, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, Cake, LogIn, LogOut, Sparkles, Wrench } from 'lucide-react'
 import * as React from 'react'
 import { Link } from 'react-router-dom'
 
+import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { AUDIT_ACTION_LABELS, AUDIT_ENTITY_LABELS, fetchActorNames } from '@/lib/audit'
 import { useAuth } from '@/lib/auth-context'
-import { formatCurrency } from '@/lib/format'
-import { fetchHotel } from '@/lib/hotel'
+import { compareRoomNumbers, formatCurrency, toLocalIsoDate } from '@/lib/format'
+import { ROOM_STATUS_DOT, ROOM_TILE_CLASSES } from '@/lib/status'
 import { supabase } from '@/lib/supabase'
 import { ROLES, ROLE_LABELS, type Role } from '@/types/auth'
 import { nightsBetween, type ReservationStatus } from '@/types/reservation'
+import { ROOM_STATUS_LABELS, type RoomStatus } from '@/types/room'
 
 const FINANCE_ROLES: Role[] = ['admin', 'gerente', 'financeiro']
 const TODAY_PANEL_ROLES: Role[] = ['admin', 'gerente', 'recepcao']
 const REMINDER_WINDOW_DAYS = 7
+
+/** Ordem da legenda e da barra de ocupação. */
+const ROOM_STATUS_ORDER: RoomStatus[] = ['ocupado', 'limpeza', 'manutencao', 'disponivel', 'inativo']
+
+const ROOM_LEGEND_LABELS: Record<RoomStatus, string> = {
+  disponivel: 'Livre',
+  ocupado: 'Ocupado',
+  limpeza: 'Limpeza',
+  manutencao: 'Manutenção',
+  inativo: 'Inativo',
+}
 
 interface TodayReservation {
   id: string
@@ -28,9 +42,14 @@ interface TodayReservation {
   rooms: { number: string } | null
 }
 
-function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10)
+interface DashboardRoom {
+  id: string
+  number: string
+  floor: string | null
+  status: RoomStatus
 }
+
+const toIsoDate = toLocalIsoDate
 
 function addDaysToDate(date: Date, amount: number): Date {
   const result = new Date(date)
@@ -45,6 +64,18 @@ function daysUntilNextBirthday(birthDateIso: string, from: Date): number {
   let next = new Date(fromMidnight.getFullYear(), birth.getMonth(), birth.getDate())
   if (next < fromMidnight) next = new Date(fromMidnight.getFullYear() + 1, birth.getMonth(), birth.getDate())
   return Math.round((next.getTime() - fromMidnight.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function greeting(now: Date): string {
+  const hour = now.getHours()
+  if (hour < 12) return 'Bom dia'
+  if (hour < 18) return 'Boa tarde'
+  return 'Boa noite'
+}
+
+function longDateLabel(now: Date): string {
+  const label = now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
 interface AuditEntry {
@@ -62,10 +93,10 @@ async function fetchUserStats(): Promise<{ role: Role; active: boolean }[]> {
   return (data ?? []) as { role: Role; active: boolean }[]
 }
 
-async function fetchRoomStats(): Promise<{ status: string }[]> {
-  const { data, error } = await supabase.from('rooms').select('status')
+async function fetchRoomStats(): Promise<DashboardRoom[]> {
+  const { data, error } = await supabase.from('rooms').select('id, number, floor, status')
   if (error) throw error
-  return (data ?? []) as { status: string }[]
+  return (data ?? []) as DashboardRoom[]
 }
 
 async function fetchRevenueStats(): Promise<{
@@ -96,46 +127,119 @@ async function fetchAuditLog(): Promise<AuditEntry[]> {
     .from('audit_log')
     .select('id, action, entity, entity_id, actor_id, created_at')
     .order('created_at', { ascending: false })
-    .limit(10)
+    .limit(8)
   if (error) throw error
   return (data ?? []) as AuditEntry[]
 }
 
-interface KpiCardProps {
+/* ---------- Peças visuais ---------- */
+
+function StatCell({
+  label,
+  value,
+  detail,
+  detailTone = 'muted',
+  children,
+}: {
   label: string
   value: string
-  sublabel?: string
-  icon: LucideIcon
-  tone: 'navy' | 'emerald' | 'sky' | 'amber'
-}
-
-const KPI_TONE_CLASSES: Record<KpiCardProps['tone'], string> = {
-  navy: 'bg-slate-800 text-white',
-  emerald: 'bg-emerald-600 text-white',
-  sky: 'bg-sky-500 text-white',
-  amber: 'bg-amber-500 text-white',
-}
-
-function KpiCard({ label, value, sublabel, icon: Icon, tone }: KpiCardProps) {
+  detail?: React.ReactNode
+  detailTone?: 'muted' | 'alert'
+  children?: React.ReactNode
+}) {
   return (
-    <div className={cn('flex items-center justify-between rounded-lg p-4 shadow-sm', KPI_TONE_CLASSES[tone])}>
-      <div>
-        <p className="text-2xl font-bold leading-tight">{value}</p>
-        <p className="text-sm text-white/85">{label}</p>
-        {sublabel && <p className="text-xs text-white/70">{sublabel}</p>}
-      </div>
-      <Icon className="h-8 w-8 text-white/70" />
+    <div className="min-w-0 bg-card px-5 py-4 md:px-6">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-1 font-display text-[34px] font-semibold leading-none text-foreground">{value}</p>
+      {detail && (
+        <p
+          className={cn(
+            'mt-2 text-xs',
+            detailTone === 'alert' ? 'font-medium text-destructive' : 'text-muted-foreground'
+          )}
+        >
+          {detail}
+        </p>
+      )}
+      {children}
     </div>
   )
 }
+
+function RoomChip({ number, tone = 'neutral' }: { number: string; tone?: 'neutral' | 'alert' }) {
+  return (
+    <span
+      className={cn(
+        'flex h-8 min-w-[2.5rem] shrink-0 items-center justify-center rounded-md px-1.5 font-display text-sm font-semibold',
+        tone === 'alert' ? 'bg-destructive/10 text-destructive' : 'bg-secondary text-pine'
+      )}
+    >
+      {number}
+    </span>
+  )
+}
+
+function MovementList({
+  icon: Icon,
+  title,
+  items,
+  emptyText,
+  tone = 'neutral',
+  meta,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  items: TodayReservation[]
+  emptyText?: string
+  tone?: 'neutral' | 'alert'
+  meta?: (r: TodayReservation) => string
+}) {
+  if (items.length === 0 && !emptyText) return null
+  return (
+    <section className="space-y-2">
+      <h3 className="flex items-center gap-2 font-sans text-sm font-semibold">
+        <Icon className={cn('h-4 w-4', tone === 'alert' ? 'text-destructive' : 'text-mint-strong')} />
+        {title}
+        <span className="ml-auto font-display text-sm text-muted-foreground">{items.length}</span>
+      </h3>
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{emptyText}</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {items.map((r) => (
+            <li key={r.id} className="flex items-center gap-3">
+              <RoomChip number={r.rooms?.number ?? '—'} tone={tone} />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{r.guests?.full_name ?? '—'}</p>
+                {meta && <p className="text-xs text-muted-foreground">{meta(r)}</p>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function CardLink({ to, children }: { to: string; children: React.ReactNode }) {
+  return (
+    <Link
+      to={to}
+      className="inline-flex text-sm font-medium text-mint-strong underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {children}
+    </Link>
+  )
+}
+
+/* ---------- Página ---------- */
 
 export function DashboardPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const canSeeFinance = !!profile && FINANCE_ROLES.includes(profile.role)
   const canSeeTodayPanel = !!profile && TODAY_PANEL_ROLES.includes(profile.role)
-
-  const { data: hotel } = useQuery({ queryKey: ['hotel'], queryFn: fetchHotel })
+  const now = React.useMemo(() => new Date(), [])
 
   const { data: userStats } = useQuery({
     queryKey: ['dashboard-user-stats'],
@@ -143,7 +247,7 @@ export function DashboardPage() {
     enabled: isAdmin,
   })
 
-  const { data: roomStats } = useQuery({
+  const { data: roomStats, isLoading: loadingRooms } = useQuery({
     queryKey: ['dashboard-room-stats'],
     queryFn: fetchRoomStats,
   })
@@ -194,13 +298,38 @@ export function DashboardPage() {
   }, [userStats])
 
   const occupancy = React.useMemo(() => {
-    const total = (roomStats ?? []).length
-    const occupied = (roomStats ?? []).filter((r) => r.status === 'ocupado').length
-    const available = (roomStats ?? []).filter((r) => r.status === 'disponivel').length
-    const cleaning = (roomStats ?? []).filter((r) => r.status === 'limpeza').length
-    const maintenance = (roomStats ?? []).filter((r) => r.status === 'manutencao').length
-    const rate = total > 0 ? Math.round((occupied / total) * 100) : 0
-    return { total, occupied, available, cleaning, maintenance, rate }
+    const rooms = roomStats ?? []
+    const byStatus = {} as Record<RoomStatus, number>
+    for (const status of ROOM_STATUS_ORDER) byStatus[status] = 0
+    for (const room of rooms) byStatus[room.status] = (byStatus[room.status] ?? 0) + 1
+    const total = rooms.length
+    const rate = total > 0 ? Math.round((byStatus.ocupado / total) * 100) : 0
+    return {
+      total,
+      byStatus,
+      occupied: byStatus.ocupado,
+      available: byStatus.disponivel,
+      cleaning: byStatus.limpeza,
+      maintenance: byStatus.manutencao,
+      rate,
+    }
+  }, [roomStats])
+
+  // Quadro de quartos: agrupa por andar quando o cadastro tem andar preenchido.
+  const roomBoard = React.useMemo(() => {
+    const rooms = [...(roomStats ?? [])].sort((a, b) => compareRoomNumbers(a.number, b.number))
+    const hasFloors = rooms.some((room) => room.floor && room.floor.trim() !== '')
+    if (!hasFloors) return [{ floor: null as string | null, rooms }]
+    const groups = new Map<string, DashboardRoom[]>()
+    for (const room of rooms) {
+      const key = room.floor?.trim() || 'Sem andar'
+      const list = groups.get(key) ?? []
+      list.push(room)
+      groups.set(key, list)
+    }
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => (a === 'Sem andar' ? 1 : b === 'Sem andar' ? -1 : compareRoomNumbers(a, b)))
+      .map(([floor, list]) => ({ floor, rooms: list }))
   }, [roomStats])
 
   const revenue = React.useMemo(() => {
@@ -254,279 +383,313 @@ export function DashboardPage() {
     return { tomorrowArrivals, birthdays }
   }, [todayReservations])
 
+  const hasReminders = reminders.tomorrowArrivals.length > 0 || reminders.birthdays.length > 0
+  const hasSideColumn = canSeeTodayPanel || canSeeFinance
+  const receivedShare = revenue.faturado > 0 ? Math.min(100, Math.round((revenue.recebido / revenue.faturado) * 100)) : 0
+
+  const firstName = profile?.full_name.split(' ')[0]
+
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          Bem-vindo(a){profile ? `, ${profile.full_name.split(' ')[0]}` : ''}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {profile ? ROLE_LABELS[profile.role] : 'Carregando seu perfil...'}
-        </p>
+    <div className="page">
+      <PageHeader
+        title={`${greeting(now)}${firstName ? `, ${firstName}` : ''}`}
+        description={longDateLabel(now)}
+        actions={
+          <>
+            <Button variant="outline" asChild>
+              <Link to="/mapa">Mapa de ocupação</Link>
+            </Button>
+            <Button asChild>
+              <Link to="/reservas">Ir para reservas</Link>
+            </Button>
+          </>
+        }
+      />
+
+      {/* Faixa de indicadores */}
+      {occupancy.total > 0 && (
+        <Card className="grid grid-cols-2 gap-px overflow-hidden bg-border/70 lg:grid-cols-4">
+          <StatCell
+            label="Ocupação agora"
+            value={`${occupancy.rate}%`}
+            detail={`${occupancy.occupied} de ${occupancy.total} quartos ocupados`}
+          >
+            <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+              {ROOM_STATUS_ORDER.map((status) =>
+                occupancy.byStatus[status] > 0 ? (
+                  <span
+                    key={status}
+                    className={ROOM_STATUS_DOT[status]}
+                    style={{ width: `${(occupancy.byStatus[status] / occupancy.total) * 100}%` }}
+                  />
+                ) : null
+              )}
+            </div>
+          </StatCell>
+          {canSeeTodayPanel ? (
+            <>
+              <StatCell
+                label="Chegadas hoje"
+                value={String(today.arrivals.length)}
+                detail={
+                  today.overdue.length > 0
+                    ? `${today.overdue.length} check-in${today.overdue.length > 1 ? 's' : ''} em atraso`
+                    : 'Nenhum check-in em atraso'
+                }
+                detailTone={today.overdue.length > 0 ? 'alert' : 'muted'}
+              />
+              <StatCell
+                label="Saídas hoje"
+                value={String(today.departures.length)}
+                detail="Check-outs previstos para hoje"
+              />
+            </>
+          ) : (
+            <>
+              <StatCell label="Aguardando limpeza" value={String(occupancy.cleaning)} detail="Liberados após a limpeza" />
+              <StatCell label="Em manutenção" value={String(occupancy.maintenance)} detail="Fora de uso no momento" />
+            </>
+          )}
+          <StatCell
+            label="Livres para hospedar"
+            value={String(occupancy.available)}
+            detail={
+              occupancy.cleaning > 0 ? `Mais ${occupancy.cleaning} depois da limpeza` : 'Limpos e disponíveis'
+            }
+          />
+        </Card>
+      )}
+
+      <div className={cn('grid grid-cols-1 gap-6', hasSideColumn && 'lg:grid-cols-3')}>
+        {/* Quadro de quartos */}
+        <Card className={cn('self-start', hasSideColumn && 'lg:col-span-2')}>
+          <CardHeader className="gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle>Quadro de quartos</CardTitle>
+              <CardDescription>Situação atual de cada quarto. Clique num quarto para ver os detalhes.</CardDescription>
+            </div>
+            {occupancy.total > 0 && (
+              <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground sm:max-w-[45%] sm:justify-end">
+                {ROOM_STATUS_ORDER.filter(
+                  (status) => occupancy.byStatus[status] > 0 || status === 'disponivel' || status === 'ocupado'
+                ).map((status) => (
+                  <li key={status} className="flex items-center gap-1.5">
+                    <span className={cn('h-2.5 w-2.5 rounded-[3px]', ROOM_STATUS_DOT[status])} />
+                    {ROOM_LEGEND_LABELS[status]}
+                    <span className="font-display font-semibold text-foreground">{occupancy.byStatus[status]}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {loadingRooms && <p className="text-sm text-muted-foreground">Carregando quartos...</p>}
+            {!loadingRooms && occupancy.total === 0 && (
+              <div className="rounded-lg border border-dashed p-6 text-center">
+                <p className="text-sm text-muted-foreground">Nenhum quarto cadastrado ainda.</p>
+                <div className="mt-3">
+                  <CardLink to="/quartos">Cadastrar quartos</CardLink>
+                </div>
+              </div>
+            )}
+            {roomBoard.map((group) => (
+              <div key={group.floor ?? 'todos'} className="space-y-2">
+                {group.floor && (
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {group.floor === 'Sem andar' ? 'Sem andar cadastrado' : `Andar ${group.floor}`}
+                  </p>
+                )}
+                <ul className="grid grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))] gap-1.5">
+                  {group.rooms.map((room) => (
+                    <li key={room.id}>
+                      <Link
+                        to={`/quartos?q=${encodeURIComponent(room.number)}`}
+                        title={`Quarto ${room.number}: ${ROOM_STATUS_LABELS[room.status]}`}
+                        aria-label={`Quarto ${room.number}, ${ROOM_STATUS_LABELS[room.status]}`}
+                        className={cn(
+                          'relative flex h-12 items-center justify-center rounded-md border font-display text-[15px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                          ROOM_TILE_CLASSES[room.status]
+                        )}
+                      >
+                        {room.number}
+                        {room.status === 'limpeza' && (
+                          <Sparkles className="absolute right-1 top-1 h-3 w-3 opacity-70" aria-hidden="true" />
+                        )}
+                        {room.status === 'manutencao' && (
+                          <Wrench className="absolute right-1 top-1 h-3 w-3 opacity-70" aria-hidden="true" />
+                        )}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {hasSideColumn && (
+          <div className="space-y-6">
+            {canSeeTodayPanel && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Movimento de hoje</CardTitle>
+                  <CardDescription>Quem chega, quem sai e quem ainda não apareceu.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <MovementList
+                    icon={AlertTriangle}
+                    title="Check-in em atraso"
+                    items={today.overdue}
+                    tone="alert"
+                    meta={(r) => `Previsto para ${new Date(`${r.check_in}T00:00:00`).toLocaleDateString('pt-BR')}`}
+                  />
+                  <MovementList icon={LogIn} title="Chegadas" items={today.arrivals} emptyText="Nenhuma chegada prevista." />
+                  <MovementList
+                    icon={LogOut}
+                    title="Saídas"
+                    items={today.departures}
+                    emptyText="Nenhuma saída prevista."
+                  />
+                  <CardLink to="/reservas">Ver todas as reservas</CardLink>
+                </CardContent>
+              </Card>
+            )}
+
+            {canSeeTodayPanel && hasReminders && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Próximos dias</CardTitle>
+                  <CardDescription>Chegadas de amanhã e aniversários nos próximos {REMINDER_WINDOW_DAYS} dias.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <MovementList icon={LogIn} title="Chegam amanhã" items={reminders.tomorrowArrivals} />
+                  {reminders.birthdays.length > 0 && (
+                    <section className="space-y-2">
+                      <h3 className="flex items-center gap-2 font-sans text-sm font-semibold">
+                        <Cake className="h-4 w-4 text-mint-strong" />
+                        Aniversários
+                        <span className="ml-auto font-display text-sm text-muted-foreground">
+                          {reminders.birthdays.length}
+                        </span>
+                      </h3>
+                      <ul className="space-y-1.5">
+                        {reminders.birthdays.map((b) => (
+                          <li key={b.guestId} className="flex items-center justify-between gap-3 text-sm">
+                            <span className="truncate font-medium">{b.name}</span>
+                            <Badge variant={b.daysUntil === 0 ? 'success' : 'secondary'}>
+                              {b.daysUntil === 0 ? 'Hoje' : b.daysUntil === 1 ? 'Amanhã' : `Em ${b.daysUntil} dias`}
+                            </Badge>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {canSeeFinance && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Financeiro</CardTitle>
+                  <CardDescription>Total acumulado desde o início do sistema.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <dl className="space-y-2.5 text-sm">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Faturado</dt>
+                      <dd className="font-display text-base font-semibold">{formatCurrency(revenue.faturado)}</dd>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Recebido</dt>
+                      <dd className="font-display text-base font-semibold text-mint-strong">
+                        {formatCurrency(revenue.recebido)}
+                      </dd>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Pendente</dt>
+                      <dd className="font-display text-base font-semibold">{formatCurrency(revenue.pendente)}</dd>
+                    </div>
+                  </dl>
+                  <div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                      <div className="h-full rounded-full bg-mint" style={{ width: `${receivedShare}%` }} />
+                    </div>
+                    <p className="mt-1.5 text-xs text-muted-foreground">{receivedShare}% do faturado já foi recebido</p>
+                  </div>
+                  <CardLink to="/financeiro">Abrir financeiro</CardLink>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
       </div>
 
-      {(canSeeTodayPanel || occupancy.total > 0) && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {canSeeTodayPanel && (
-            <KpiCard label="Chegadas hoje" value={String(today.arrivals.length)} icon={DoorOpen} tone="navy" />
-          )}
-          {canSeeTodayPanel && (
-            <KpiCard label="Saídas hoje" value={String(today.departures.length)} icon={DoorClosed} tone="emerald" />
-          )}
-          {occupancy.total > 0 && (
-            <KpiCard
-              label="Ocupação"
-              value={`${occupancy.rate}%`}
-              sublabel={`${occupancy.occupied} de ${occupancy.total} quartos`}
-              icon={PieChart}
-              tone="sky"
-            />
-          )}
-          {occupancy.total > 0 && (
-            <KpiCard label="Disponíveis" value={String(occupancy.available)} icon={BedDouble} tone="amber" />
-          )}
-        </div>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{hotel ? hotel.name : 'Hotel'}</CardTitle>
-          <CardDescription>
-            {hotel?.address
-              ? `${hotel.address.city} - ${hotel.address.state}`
-              : 'Nenhum hotel cadastrado ainda.'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Link to="/hotel" className="text-sm text-primary underline-offset-4 hover:underline">
-            Ver configurações do hotel
-          </Link>
-        </CardContent>
-      </Card>
-
-      {canSeeTodayPanel &&
-        (today.arrivals.length > 0 || today.departures.length > 0 || today.overdue.length > 0) && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Hoje</CardTitle>
-              <CardDescription>Chegadas e saídas esperadas hoje, e atrasos.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {today.overdue.length > 0 && (
-                <div>
-                  <div className="mb-1 flex items-center gap-2">
-                    <span className="text-sm font-medium">Atrasadas</span>
-                    <Badge variant="destructive">{today.overdue.length}</Badge>
-                  </div>
-                  <ul className="space-y-1">
-                    {today.overdue.map((r) => (
-                      <li key={r.id} className="text-sm text-muted-foreground">
-                        {r.guests?.full_name ?? '—'} — quarto {r.rooms?.number ?? '—'} (check-in previsto{' '}
-                        {new Date(`${r.check_in}T00:00:00`).toLocaleDateString('pt-BR')})
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {today.arrivals.length > 0 && (
-                <div>
-                  <div className="mb-1 flex items-center gap-2">
-                    <span className="text-sm font-medium">Chegadas de hoje</span>
-                    <Badge>{today.arrivals.length}</Badge>
-                  </div>
-                  <ul className="space-y-1">
-                    {today.arrivals.map((r) => (
-                      <li key={r.id} className="text-sm text-muted-foreground">
-                        {r.guests?.full_name ?? '—'} — quarto {r.rooms?.number ?? '—'}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {today.departures.length > 0 && (
-                <div>
-                  <div className="mb-1 flex items-center gap-2">
-                    <span className="text-sm font-medium">Saídas de hoje</span>
-                    <Badge variant="secondary">{today.departures.length}</Badge>
-                  </div>
-                  <ul className="space-y-1">
-                    {today.departures.map((r) => (
-                      <li key={r.id} className="text-sm text-muted-foreground">
-                        {r.guests?.full_name ?? '—'} — quarto {r.rooms?.number ?? '—'}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <Link to="/reservas" className="mt-2 inline-block text-sm text-primary underline-offset-4 hover:underline">
-                Ver reservas
-              </Link>
-            </CardContent>
-          </Card>
-        )}
-
-      {canSeeTodayPanel && (reminders.tomorrowArrivals.length > 0 || reminders.birthdays.length > 0) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Próximos dias</CardTitle>
-            <CardDescription>
-              Chegadas de amanhã e aniversários de hóspedes nos próximos {REMINDER_WINDOW_DAYS} dias.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {reminders.tomorrowArrivals.length > 0 && (
-              <div>
-                <div className="mb-1 flex items-center gap-2">
-                  <span className="text-sm font-medium">Chegadas de amanhã</span>
-                  <Badge variant="outline">{reminders.tomorrowArrivals.length}</Badge>
-                </div>
-                <ul className="space-y-1">
-                  {reminders.tomorrowArrivals.map((r) => (
-                    <li key={r.id} className="text-sm text-muted-foreground">
-                      {r.guests?.full_name ?? '—'} — quarto {r.rooms?.number ?? '—'}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {reminders.birthdays.length > 0 && (
-              <div>
-                <div className="mb-1 flex items-center gap-2">
-                  <span className="text-sm font-medium">Aniversários</span>
-                  <Badge variant="outline">{reminders.birthdays.length}</Badge>
-                </div>
-                <ul className="space-y-1">
-                  {reminders.birthdays.map((b) => (
-                    <li key={b.guestId} className="text-sm text-muted-foreground">
-                      {b.name} —{' '}
-                      {b.daysUntil === 0 ? 'hoje' : b.daysUntil === 1 ? 'amanhã' : `em ${b.daysUntil} dias`}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <Link to="/reservas" className="mt-2 inline-block text-sm text-primary underline-offset-4 hover:underline">
-              Ver reservas
-            </Link>
-          </CardContent>
-        </Card>
-      )}
-
-      {occupancy.total > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Ocupação atual</CardTitle>
-            <CardDescription>
-              {occupancy.occupied} de {occupancy.total} quartos ocupados ({occupancy.rate}%)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Disponíveis</span>
-              <span>{occupancy.available}</span>
-            </div>
-            {occupancy.cleaning > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Aguardando limpeza</span>
-                <span>{occupancy.cleaning}</span>
-              </div>
-            )}
-            {occupancy.maintenance > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Em manutenção</span>
-                <span>{occupancy.maintenance}</span>
-              </div>
-            )}
-            <Link to="/reservas" className="mt-2 inline-block text-sm text-primary underline-offset-4 hover:underline">
-              Ver reservas
-            </Link>
-          </CardContent>
-        </Card>
-      )}
-
       {isAdmin && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Usuários</CardTitle>
-              <CardDescription>
-                {roleCounts.total} no total · {roleCounts.activeCount} ativos · {roleCounts.inactiveCount}{' '}
-                inativos
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              {ROLES.map((role) => (
-                <div key={role} className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{ROLE_LABELS[role]}</span>
-                  <span>{roleCounts.counts.get(role) ?? 0}</span>
-                </div>
-              ))}
-              <Link
-                to="/usuarios"
-                className="mt-2 inline-block text-sm text-primary underline-offset-4 hover:underline"
-              >
-                Gerenciar usuários
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Atividade recente</CardTitle>
-              <CardDescription>Últimas ações registradas</CardDescription>
+              <CardDescription>Últimas alterações em usuários, reservas e pagamentos.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               {(auditLog ?? []).length === 0 && (
                 <p className="text-sm text-muted-foreground">Nenhuma atividade registrada ainda.</p>
               )}
-              {(auditLog ?? []).map((entry) => (
-                <div key={entry.id} className="text-sm">
-                  <span className="font-medium">
-                    {entry.actor_id ? actorNames?.[entry.actor_id] ?? 'Alguém' : 'Sistema'}
-                  </span>{' '}
-                  {AUDIT_ACTION_LABELS[entry.action] ?? entry.action} {AUDIT_ENTITY_LABELS[entry.entity] ?? entry.entity}
-                  <div className="text-xs text-muted-foreground">
-                    {new Date(entry.created_at).toLocaleString('pt-BR')}
+              <ol className="relative space-y-3 border-l border-border pl-5">
+                {(auditLog ?? []).map((entry) => (
+                  <li key={entry.id} className="relative text-sm">
+                    <span
+                      className={cn(
+                        'absolute -left-[25px] top-1.5 h-2 w-2 rounded-full ring-4 ring-card',
+                        entry.action === 'delete' ? 'bg-destructive' : entry.action === 'create' ? 'bg-mint' : 'bg-pine/40'
+                      )}
+                      aria-hidden="true"
+                    />
+                    <p>
+                      <span className="font-medium">
+                        {entry.actor_id ? actorNames?.[entry.actor_id] ?? 'Alguém' : 'Sistema'}
+                      </span>{' '}
+                      {AUDIT_ACTION_LABELS[entry.action] ?? entry.action}{' '}
+                      {AUDIT_ENTITY_LABELS[entry.entity] ?? entry.entity}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(entry.created_at).toLocaleString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+              <CardLink to="/auditoria">Ver histórico completo</CardLink>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Equipe</CardTitle>
+              <CardDescription>
+                {roleCounts.total} usuário{roleCounts.total !== 1 ? 's' : ''}, {roleCounts.activeCount} ativo
+                {roleCounts.activeCount !== 1 ? 's' : ''}
+                {roleCounts.inactiveCount > 0 ? ` e ${roleCounts.inactiveCount} inativo${roleCounts.inactiveCount !== 1 ? 's' : ''}` : ''}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <dl className="space-y-2">
+                {ROLES.map((role) => (
+                  <div key={role} className="flex items-center justify-between text-sm">
+                    <dt className="text-muted-foreground">{ROLE_LABELS[role]}</dt>
+                    <dd className="font-display font-semibold">{roleCounts.counts.get(role) ?? 0}</dd>
                   </div>
-                </div>
-              ))}
-              <Link to="/auditoria" className="mt-2 inline-block text-sm text-primary underline-offset-4 hover:underline">
-                Ver histórico completo
-              </Link>
+                ))}
+              </dl>
+              <CardLink to="/usuarios">Gerenciar usuários</CardLink>
             </CardContent>
           </Card>
         </div>
-      )}
-
-      {canSeeFinance && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Financeiro</CardTitle>
-            <CardDescription>Faturado, recebido e pendente (total desde o início do sistema)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Faturado</span>
-              <span>{formatCurrency(revenue.faturado)}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Recebido</span>
-              <span>{formatCurrency(revenue.recebido)}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Pendente</span>
-              <span>{formatCurrency(revenue.pendente)}</span>
-            </div>
-            <Link to="/financeiro" className="mt-2 inline-block text-sm text-primary underline-offset-4 hover:underline">
-              Ver financeiro
-            </Link>
-          </CardContent>
-        </Card>
       )}
     </div>
   )

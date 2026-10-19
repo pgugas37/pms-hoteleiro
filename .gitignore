@@ -4,6 +4,10 @@ node_modules/
 # build output
 dist/
 dist-ssr/
+# gerados pelo `tsc -b` (tsconfig.node.json é composite)
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
 
 # env files (contêm chaves — nunca versionar)
 .env

@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 
 import { GuestDialog } from '@/components/GuestDialog'
 import { NotesDialog } from '@/components/NotesDialog'
+import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '@/lib/auth-context'
 import { formatCurrency } from '@/lib/format'
+import { reservationStatusVariant } from '@/lib/status'
 import { supabase } from '@/lib/supabase'
 import { DOCUMENT_TYPE_LABELS, type Guest } from '@/types/guest'
 import type { Role } from '@/types/auth'
@@ -54,13 +56,6 @@ async function fetchGuestReservations(): Promise<GuestReservation[]> {
     .order('check_in', { ascending: false })
   if (error) throw error
   return (data as unknown as GuestReservation[]) ?? []
-}
-
-function statusBadgeVariant(status: ReservationStatus) {
-  if (status === 'confirmada') return 'default'
-  if (status === 'em_andamento') return 'secondary'
-  if (status === 'cancelada') return 'destructive'
-  return 'outline'
 }
 
 export function GuestsPage() {
@@ -114,11 +109,8 @@ export function GuestsPage() {
   })
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Hóspedes</h1>
-        <p className="text-sm text-muted-foreground">Cadastro de hóspedes do hotel.</p>
-      </div>
+    <div className="page">
+      <PageHeader title="Hóspedes" description="Cadastro de hóspedes, histórico de estadias e observações." />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -182,7 +174,7 @@ export function GuestsPage() {
                       <NotesDialog subjectType="guest" subjectId={guest.id} subjectLabel={guest.full_name} />
                     </TableCell>
                     {isStaff && (
-                      <TableCell className="space-x-2 text-right">
+                      <TableCell className="space-x-1.5 whitespace-nowrap text-right">
                         <GuestDialog guest={guest} />
                         {isAdmin && (
                           <Button
@@ -264,7 +256,7 @@ function GuestHistoryDialog({
                       {new Date(`${reservation.check_out}T00:00:00`).toLocaleDateString('pt-BR')}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusBadgeVariant(reservation.status)}>
+                      <Badge variant={reservationStatusVariant(reservation.status)}>
                         {RESERVATION_STATUS_LABELS[reservation.status]}
                       </Badge>
                     </TableCell>

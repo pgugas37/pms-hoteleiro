@@ -1,6 +1,6 @@
 # Status do projeto — PMS Hoteleiro (HotelFlow)
 
-_Última atualização: 19/09/2026 (Finalização — Layout e Deploy)_
+_Última atualização: 18/10/2026 (Repaginação visual — identidade do Millenium Hotel)_
 
 ## Contexto
 
@@ -45,6 +45,7 @@ Stack de frontend aprovada: React 18 + TypeScript + Vite + Tailwind CSS + shadcn
   23. `module18_reservation_occupant_name`
   24. `module22_seasonal_rates`
   25. `module23_audit_reservations_payments`
+  26. `module26_cancellation_reason` (descrita no Módulo 26; faltava nesta lista)
 - Tabelas: `public.profiles`, `public.hotels`, `public.audit_log`, `public.room_types`, `public.rooms`, `public.guests`, `public.reservations`, `public.maintenance_requests`, `public.payments`, `public.internal_notes`, `public.seasonal_rates` (todas com RLS habilitado).
 - Função auxiliar `private.has_role(roles text[])` — generalização de `private.is_admin()`, usada nas policies de `guests` e `reservations` pra permitir admin, gerente e recepção.
 - Funções RPC (`security definer`, checagem de papel manual por dentro): `checkin_reservation`, `checkout_reservation`, `cancel_reservation` (reserva e quarto mudam de status juntos, na mesma transação), `mark_room_clean` (governança), `report_maintenance_issue`/`resolve_maintenance_request` (manutenção), `register_payment` (financeiro — edição e exclusão de pagamento já usam update/delete direto, protegidos por RLS admin-only, sem precisar de RPC).
@@ -371,6 +372,35 @@ Com os 27 módulos concluídos e sem novos candidatos óbvios na lista, o projet
 **Correção: mensagem de erro ao excluir reserva** — o botão "Excluir" (reservas canceladas/finalizadas, só admin) falhava com uma mensagem genérica quando a reserva tinha pagamentos vinculados no financeiro (o banco bloqueia essa exclusão de propósito, com `ON DELETE RESTRICT` na FK de `payments.reservation_id`, pra não sumir com histórico financeiro sem querer). A mensagem de erro agora identifica esse caso especificamente (código Postgres `23503`) e orienta a excluir os pagamentos da reserva primeiro, na aba Financeiro → Histórico de pagamentos.
 
 Testado rodando local (layout) e em produção (deploy e exclusão de reserva com pagamento vinculado).
+
+## Repaginação visual — identidade do Millenium Hotel ✅
+
+Feita em 18/10/2026 a pedido do Gustavo ("layout mais bonito, atrativo e com cara de profissional"). Só frontend, sem migration e sem mudança de regra de negócio, exceto o "Esqueci minha senha" (abaixo).
+
+- **Identidade:** cores tiradas da logo do hotel — Pinho `#002E2F` (menu, botões, "hospedado") e Menta `#33CB98` (destaques, "livre"), fundo `#F2F5F4`. Tokens em `src/index.css` e classes `pine`, `mint`, `status-*` e `sidebar` no `tailwind.config.ts`. Fontes do Google Fonts (link no `index.html`): **Saira** em títulos, números e nº de quarto (lembra as letras da logo) e **Public Sans** no texto, com algarismos tabulares.
+- **Logo:** `src/assets/brand/` — símbolo (versão sem o anel branco que o arquivo original tem em volta do círculo), wordmark branco para fundo escuro e wordmark escuro; favicon em `public/favicon.png`. Origem: `OneDrive\Documentos\hotel\300ppi`.
+- **Menu lateral** (`Sidebar.tsx`): logo do hotel, itens agrupados em Operação / Serviços / Gestão, "Minha conta" no rodapé, item ativo com barra menta. Mesmas regras de visibilidade por papel de antes. No celular abre como gaveta (fecha no X, no fundo ou com Esc).
+- **Barra superior** (`AppLayout.tsx`): campo "Buscar hóspede, quarto ou reserva" que abre a busca global (Ctrl+K continua valendo), avatar com iniciais, nome, papel e "Sair". A busca global ganhou visual de paleta de comandos, com ícones por grupo.
+- **Componentes base** (`src/components/ui/`): botão, card, badge (variantes novas `success`, `info`, `warning`, `solid`), tabela, campos, select, abas (agora sublinhadas) e dialog restilizados.
+- **Cores de status centralizadas** em `src/lib/status.ts` (`reservationStatusVariant`, `roomStatusVariant`): pinho = hospedado/ocupado, azul = confirmada, menta = livre, âmbar = limpeza, coral = manutenção/cancelada. Substitui as três funções `statusBadgeVariant` duplicadas (Reservas, Hóspedes, busca global) e o mapeamento solto da tela Quartos.
+- **Cabeçalho padrão** (`src/components/PageHeader.tsx`) e classe `.page` em todas as telas internas: título em Saira, conteúdo alinhado à esquerda (até 1400px) em vez de colunas estreitas centralizadas.
+- **Dashboard:** faixa de indicadores (ocupação com barra por status, chegadas, saídas, quartos livres); **Quadro de quartos** com todos os quartos coloridos pela situação atual (agrupados por andar quando o cadastro tiver andar; clicar abre a tela Quartos filtrada pelo número); card **Movimento de hoje** (atrasos, chegadas, saídas) agora sempre visível para admin/gerente/recepção, com aviso quando não há movimento — antes ele sumia; Próximos dias; Financeiro com % já recebido; Atividade recente em linha do tempo; Equipe. O card com nome/cidade do hotel saiu (a logo está no menu e Configurações continua no menu). A consulta de quartos do Dashboard passou a trazer `id, number, floor` além de `status`.
+- **Mapa de ocupação:** cada estadia vira uma barra contínua (arredondada na chegada e na última noite), coluna de hoje destacada, dia da semana no cabeçalho e navegação por setas no topo da página.
+- **Telas públicas** (login, configuração inicial, definir senha) usam `AuthShell.tsx`: painel pinho com a logo e o padrão de linhas do símbolo, formulário à direita.
+- **Novo — "Esqueci minha senha" no login:** chama `supabase.auth.resetPasswordForEmail` com `redirectTo` = `<endereço atual>/redefinir-senha` (tela que já existia para o convite). Para o link do e-mail cair nessa tela, a URL precisa estar liberada em Supabase → Authentication → URL Configuration → Redirect URLs (produção e `http://localhost:5173`); se não estiver, o Supabase usa a Site URL. Testado de ponta a ponta em local (e-mail enviado, link abriu a sessão de recuperação).
+- **Mensagens de erro de senha** (`src/lib/authErrors.ts`, usado em Definir senha e Minha conta): antes qualquer falha mostrava "o link pode ter expirado"; agora "senha nova igual à atual" (`same_password`), "senha fraca" e "sessão expirada" têm mensagem própria. Foi exatamente o caso do Gustavo no teste: o link funcionou, mas a senha digitada era a mesma de antes.
+- **Reservas — tabela mais enxuta:** Check-in e Check-out viraram uma coluna "Período" (ex.: "28/09 a 30/09/2026" com "2 noites" embaixo); número do quarto em destaque com o tipo embaixo; ações numa linha em telas largas e no máximo em duas em notebook de 1366px (antes empilhavam uma por linha). Mesmo cuidado na tabela do Financeiro (nome longo sem espaços não empurra mais as colunas; saldo parcial em âmbar).
+- **Correção — "hoje" em UTC:** Dashboard, Reservas (badge "Atrasada"), Mapa e Financeiro calculavam a data de hoje com `toISOString()` (UTC). No Brasil, depois das 21h o sistema já considerava o dia seguinte (chegadas/saídas de hoje e atrasos errados à noite). Agora usam `toLocalIsoDate` (`src/lib/format.ts`), no fuso do computador.
+- **Correção — ordem dos quartos:** o banco ordena `rooms.number` como texto (1, 10, 11... 19, 2, 20). Mapa, Quartos, seleção de quarto na Reserva, Governança e Manutenção agora ordenam numericamente com `compareRoomNumbers` (`src/lib/format.ts`).
+- **`.gitignore`:** passou a ignorar `*.tsbuildinfo`, `vite.config.js` e `vite.config.d.ts`, que o `tsc -b` gera na raiz a cada build (o `tsconfig.node.json` é `composite`).
+
+**Incidente encontrado durante a validação:** o projeto Supabase estava **pausado** (status `INACTIVE`) — o plano free pausa projetos depois de alguns dias sem acesso, e o endereço `gbtxgprucctjpwqswdng.supabase.co` deixa de existir no DNS. Com isso o site em produção também ficou sem banco. Reativado em 18/10/2026 (restore pelo conector do Supabase, com autorização do Gustavo). Se o sistema ficar dias sem uso de novo, conferir isso primeiro.
+
+**Tooling:** o projeto foi recebido como zip (`pms-hoteleiro-codigo-completo.zip`) e extraído em `OneDrive\Documentos\claude\pms-hoteleiro`, sem `.git`. Dependências instaladas com `npx pnpm@10 install --virtual-store-dir "C:\Users\Gustavo Pereira\.pnpm-virtual\pms-hoteleiro"` para os pacotes não ficarem dentro do OneDrive.
+
+Testado rodando local contra o Supabase de verdade: `pnpm build` completo (tsc + vite) sem erros; login e telas públicas em desktop e celular; as 12 telas internas abrem com dados e sem erro no console; Dashboard, Reservas, Mapa, Quartos, Financeiro e busca global conferidos visualmente em 1100, 1366 e 1440px; nenhuma tela passa da largura em celular (375px); menu-gaveta abre e fecha. O `pnpm lint` acusa 2 erros que já existiam antes (interface vazia em `ui/input.tsx` e `require()` no `tailwind.config.ts`), não relacionados à repaginação.
+
+**Pendente:** esta pasta não tem `.git` — as mudanças ainda não foram para o GitHub, então o site no Netlify continua com o visual antigo até o push na `main`.
 
 ## Código do frontend
 

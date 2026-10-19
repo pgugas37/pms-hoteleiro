@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -53,14 +54,8 @@ export function UsersListPage() {
   })
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Usuários</h1>
-          <p className="text-sm text-muted-foreground">Gerencie os acessos ao sistema.</p>
-        </div>
-        <CreateUserDialog />
-      </div>
+    <div className="page">
+      <PageHeader title="Usuários" description="Quem tem acesso ao sistema e com qual papel." actions={<CreateUserDialog />} />
 
       {isLoading && <p className="text-sm text-muted-foreground">Carregando usuários...</p>}
 

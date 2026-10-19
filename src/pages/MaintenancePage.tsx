@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,6 +22,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '@/lib/auth-context'
+import { compareRoomNumbers } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 import { maintenanceRequestSchema, type MaintenanceRequestInput } from '@/lib/validations'
 import type { Role } from '@/types/auth'
@@ -41,7 +43,7 @@ async function fetchMaintenanceRequests(): Promise<MaintenanceRequestWithRoom[]>
 async function fetchRoomsForSelect(): Promise<{ id: string; number: string }[]> {
   const { data, error } = await supabase.from('rooms').select('id, number').order('number', { ascending: true })
   if (error) throw error
-  return data ?? []
+  return (data ?? []).sort((a, b) => compareRoomNumbers(a.number, b.number))
 }
 
 function rpcErrorMessage(error: unknown, fallback: string): string {
@@ -90,11 +92,8 @@ export function MaintenancePage() {
   )
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Manutenção</h1>
-        <p className="text-sm text-muted-foreground">Chamados de manutenção reportados nos quartos.</p>
-      </div>
+    <div className="page">
+      <PageHeader title="Manutenção" description="Chamados de manutenção reportados nos quartos." />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
