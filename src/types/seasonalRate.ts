@@ -6,6 +6,7 @@ export interface SeasonalRate {
   end_date: string
   daily_rate: number
   created_at: string
+  updated_at?: string
 }
 
 export interface SeasonalRateWithType extends SeasonalRate {

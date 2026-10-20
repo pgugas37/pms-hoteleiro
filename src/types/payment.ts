@@ -17,6 +17,7 @@ export interface Payment {
   notes: string | null
   registered_by: string | null
   created_at: string
+  updated_at?: string
 }
 
 export interface PaymentWithReservation extends Payment {

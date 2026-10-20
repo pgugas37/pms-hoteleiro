@@ -6,4 +6,5 @@ export interface InternalNote {
   created_by: string | null
   created_by_name: string
   created_at: string
+  updated_at?: string
 }

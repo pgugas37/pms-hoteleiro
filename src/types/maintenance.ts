@@ -15,6 +15,7 @@ export interface MaintenanceRequest {
   resolved_by: string | null
   created_at: string
   resolved_at: string | null
+  updated_at?: string
 }
 
 export interface MaintenanceRequestWithRoom extends MaintenanceRequest {
