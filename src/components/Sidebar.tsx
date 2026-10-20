@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   BedDouble,
   CalendarRange,
   ClipboardList,
@@ -19,6 +20,7 @@ import { NavLink } from 'react-router-dom'
 
 import simboloUrl from '@/assets/brand/millenium-simbolo.png'
 import wordmarkUrl from '@/assets/brand/millenium-wordmark-branco.png'
+import { InstallAppButton } from '@/components/InstallAppButton'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/types/auth'
 import type { Hotel } from '@/types/hotel'
@@ -29,6 +31,8 @@ interface NavItem {
   icon: LucideIcon
   roles?: Role[]
   end?: boolean
+  /** Contador ao lado do nome (ex.: quantas pendências). */
+  badge?: number
 }
 
 interface NavGroup {
@@ -76,6 +80,8 @@ const ACCOUNT_ITEM: NavItem = { to: '/minha-conta', label: 'Minha conta', icon: 
 interface SidebarProps {
   role: Role | undefined
   hotel: Hotel | null | undefined
+  /** Ações aguardando envio + recusadas neste aparelho. */
+  pendingCount: number
   mobileOpen: boolean
   onClose: () => void
 }
@@ -104,6 +110,9 @@ function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate: () => vo
             )}
           />
           {item.label}
+          {!!item.badge && (
+            <span className="ml-auto rounded-full bg-mint px-1.5 text-[11px] font-semibold text-pine">{item.badge}</span>
+          )}
         </>
       )}
     </NavLink>
@@ -113,17 +122,25 @@ function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate: () => vo
 function SidebarContent({
   hotel,
   role,
+  pendingCount,
   onNavigate,
   onClose,
 }: {
   hotel: Hotel | null | undefined
   role: Role | undefined
+  pendingCount: number
   onNavigate: () => void
   onClose?: () => void
 }) {
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => !item.roles || (role && item.roles.includes(role))),
+    items: [
+      ...group.items.filter((item) => !item.roles || (role && item.roles.includes(role))),
+      // Pendências só aparece quando há algo aguardando envio ou recusado neste aparelho.
+      ...(group.label === 'Operação' && pendingCount > 0
+        ? [{ to: '/pendencias', label: 'Pendências', icon: AlertTriangle, badge: pendingCount }]
+        : []),
+    ],
   })).filter((group) => group.items.length > 0)
 
   return (
@@ -157,6 +174,7 @@ function SidebarContent({
       </nav>
 
       <div className="space-y-3 border-t border-white/[0.08] px-3 py-4">
+        <InstallAppButton />
         <NavItemLink item={ACCOUNT_ITEM} onNavigate={onNavigate} />
         <p className="px-3 text-[11px] text-sidebar-foreground/35">HotelFlow, gestão hoteleira</p>
       </div>
@@ -164,7 +182,7 @@ function SidebarContent({
   )
 }
 
-export function Sidebar({ role, hotel, mobileOpen, onClose }: SidebarProps) {
+export function Sidebar({ role, hotel, pendingCount, mobileOpen, onClose }: SidebarProps) {
   React.useEffect(() => {
     if (!mobileOpen) return
     function onKeyDown(e: KeyboardEvent) {
@@ -177,14 +195,20 @@ export function Sidebar({ role, hotel, mobileOpen, onClose }: SidebarProps) {
   return (
     <>
       <aside className="sticky top-0 hidden h-screen shrink-0 md:block">
-        <SidebarContent hotel={hotel} role={role} onNavigate={() => {}} />
+        <SidebarContent hotel={hotel} role={role} pendingCount={pendingCount} onNavigate={() => {}} />
       </aside>
 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Menu">
           <div className="absolute inset-0 bg-pine/60 backdrop-blur-[2px] animate-in fade-in-0" onClick={onClose} />
           <div className="absolute inset-y-0 left-0 shadow-2xl animate-in slide-in-from-left duration-200">
-            <SidebarContent hotel={hotel} role={role} onNavigate={onClose} onClose={onClose} />
+            <SidebarContent
+              hotel={hotel}
+              role={role}
+              pendingCount={pendingCount}
+              onNavigate={onClose}
+              onClose={onClose}
+            />
           </div>
         </div>
       )}

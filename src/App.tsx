@@ -3,6 +3,7 @@ import { RouterProvider } from 'react-router-dom'
 import { Toaster } from 'sonner'
 
 import { ConfirmProvider } from '@/components/ConfirmDialog'
+import { UpdatePrompt } from '@/components/UpdatePrompt'
 import { AuthProvider } from '@/lib/auth-context'
 import { SyncProvider } from '@/offline/sync-context'
 import { router } from '@/router'
@@ -24,6 +25,7 @@ export function App() {
             <RouterProvider router={router} />
           </ConfirmProvider>
         </SyncProvider>
+        <UpdatePrompt />
         <Toaster richColors position="top-right" />
       </AuthProvider>
     </QueryClientProvider>

@@ -6,7 +6,8 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:react-hooks/recommended',
   ],
-  ignorePatterns: ['dist', '.eslintrc.cjs'],
+  // vite.config.js/.d.ts são gerados pelo `tsc -b` a cada build (e ignorados pelo git)
+  ignorePatterns: ['dist', '.eslintrc.cjs', 'vite.config.js', 'vite.config.d.ts'],
   parser: '@typescript-eslint/parser',
   plugins: ['react-refresh'],
   rules: {

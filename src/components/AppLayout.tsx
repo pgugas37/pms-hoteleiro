@@ -6,6 +6,7 @@ import { Outlet } from 'react-router-dom'
 import { useConfirm } from '@/components/ConfirmDialog'
 import { GlobalSearchDialog } from '@/components/GlobalSearchDialog'
 import { Sidebar } from '@/components/Sidebar'
+import { SyncStatus } from '@/components/SyncStatus'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { fetchHotel } from '@/lib/hotel'
@@ -44,7 +45,13 @@ export function AppLayout() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar role={profile?.role} hotel={hotel} mobileOpen={mobileNavOpen} onClose={closeMobileNav} />
+      <Sidebar
+        role={profile?.role}
+        hotel={hotel}
+        pendingCount={state.pending + state.rejected}
+        mobileOpen={mobileNavOpen}
+        onClose={closeMobileNav}
+      />
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b bg-background/85 px-4 backdrop-blur-md md:px-8">
@@ -62,6 +69,9 @@ export function AppLayout() {
           </div>
 
           <div className="flex shrink-0 items-center gap-3">
+            <div className="hidden sm:block">
+              <SyncStatus />
+            </div>
             {profile && (
               <div className="flex items-center gap-2.5">
                 <span
@@ -90,7 +100,17 @@ export function AppLayout() {
         </header>
 
         <main className="flex-1">
-          <Outlet />
+          {state.ready ? (
+            <Outlet />
+          ) : (
+            <div className="page">
+              <p className="text-sm text-muted-foreground">
+                {state.connection === 'online'
+                  ? 'Preparando o app neste aparelho (baixando os dados do hotel)…'
+                  : 'Este aparelho ainda não tem a cópia dos dados. Conecte-se à internet para baixá-la.'}
+              </p>
+            </div>
+          )}
         </main>
       </div>
     </div>
