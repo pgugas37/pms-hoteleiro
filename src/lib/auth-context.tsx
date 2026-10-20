@@ -39,14 +39,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signingOut = React.useRef(false)
 
   const loadProfile = React.useCallback(async (current: Session) => {
-    const useSavedProfile = () => {
+    const applySavedProfile = () => {
       const identity = loadIdentity()
       setProfile(identity?.userId === current.user.id ? identity.profile : null)
     }
     // Sabidamente sem rede: nem tenta (a biblioteca repete a busca algumas vezes e a abertura demorava ~5 s).
-    if (browserSaysOffline() || isSimulatedOffline()) return useSavedProfile()
+    if (browserSaysOffline() || isSimulatedOffline()) return applySavedProfile()
     const { data, error, status } = await supabase.from('profiles').select('*').eq('id', current.user.id).maybeSingle()
-    if (error && (status === 0 || status >= 500)) return useSavedProfile() // sem rede: perfil guardado
+    if (error && (status === 0 || status >= 500)) return applySavedProfile() // sem rede: perfil guardado
     const loaded = (data as Profile | null) ?? null
     setProfile(loaded)
     if (loaded) {
