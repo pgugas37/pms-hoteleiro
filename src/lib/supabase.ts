@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
+import { offlineAwareFetch } from '@/offline/connectivity'
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
@@ -9,4 +11,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// O fetch próprio só existe para o modo de teste offline (hotelflowTeste.offline(true) no console).
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: { fetch: offlineAwareFetch },
+})
