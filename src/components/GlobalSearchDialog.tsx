@@ -82,12 +82,13 @@ export function GlobalSearchDialog() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Buscar hóspede, quarto ou reserva"
-        className="flex h-9 w-full max-w-sm items-center gap-2 rounded-lg border border-input bg-card px-3 text-sm text-muted-foreground transition-colors hover:border-pine/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex h-9 w-full min-w-0 max-w-sm items-center gap-2 rounded-lg border border-input bg-card px-3 text-sm text-muted-foreground transition-colors hover:border-pine/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Search className="h-4 w-4 shrink-0" />
-        <span className="flex-1 truncate text-left">
+        <span className="min-w-0 flex-1 truncate text-left">
           <span className="hidden sm:inline">Buscar hóspede, quarto ou reserva</span>
-          <span className="sm:hidden">Buscar</span>
+          {/* Celular estreito: só a lupa (o aviso de conexão divide a barra com a busca). */}
+          <span className="hidden min-[420px]:inline sm:hidden">Buscar</span>
         </span>
         <kbd className="hidden rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[11px] font-medium sm:inline">
           Ctrl K

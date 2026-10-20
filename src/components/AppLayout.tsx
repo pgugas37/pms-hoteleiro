@@ -72,6 +72,9 @@ export function AppLayout() {
             <div className="hidden sm:block">
               <SyncStatus />
             </div>
+            <div className="sm:hidden">
+              <SyncStatus compact />
+            </div>
             {profile && (
               <div className="flex items-center gap-2.5">
                 <span
