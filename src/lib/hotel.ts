@@ -1,8 +1,7 @@
-import { supabase } from '@/lib/supabase'
+import { getHotel } from '@/offline/queries'
 import type { Hotel } from '@/types/hotel'
 
+/** Dados do hotel, lidos da cópia local (funciona sem internet). */
 export async function fetchHotel(): Promise<Hotel | null> {
-  const { data, error } = await supabase.from('hotels').select('*').limit(1).maybeSingle()
-  if (error) throw error
-  return data as Hotel | null
+  return getHotel()
 }

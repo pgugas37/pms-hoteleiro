@@ -24,6 +24,7 @@ import { useAuth } from '@/lib/auth-context'
 import { formatCurrency } from '@/lib/format'
 import { reservationStatusVariant } from '@/lib/status'
 import { supabase } from '@/lib/supabase'
+import { listGuests, listReservationsWithRelations } from '@/offline/queries'
 import { DOCUMENT_TYPE_LABELS, type Guest } from '@/types/guest'
 import type { Role } from '@/types/auth'
 import {
@@ -44,19 +45,19 @@ interface GuestReservation {
   rooms: { number: string } | null
 }
 
-async function fetchGuests(): Promise<Guest[]> {
-  const { data, error } = await supabase.from('guests').select('*').order('full_name', { ascending: true })
-  if (error) throw error
-  return (data as Guest[]) ?? []
-}
+// Leituras da cópia local (funcionam sem internet).
+const fetchGuests: () => Promise<Guest[]> = listGuests
 
 async function fetchGuestReservations(): Promise<GuestReservation[]> {
-  const { data, error } = await supabase
-    .from('reservations')
-    .select('id, guest_id, check_in, check_out, daily_rate, status, rooms(number)')
-    .order('check_in', { ascending: false })
-  if (error) throw error
-  return (data as unknown as GuestReservation[]) ?? []
+  return (await listReservationsWithRelations()).map((r) => ({
+    id: r.id,
+    guest_id: r.guest_id,
+    check_in: r.check_in,
+    check_out: r.check_out,
+    daily_rate: r.daily_rate,
+    status: r.status,
+    rooms: r.rooms ? { number: r.rooms.number } : null,
+  }))
 }
 
 export function GuestsPage() {

@@ -5,18 +5,13 @@ import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { compareRoomNumbers } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
+import { listRoomsWithType } from '@/offline/queries'
 import type { RoomWithType } from '@/types/room'
 
+/** Quartos aguardando limpeza, lidos da cópia local (funciona sem internet). */
 async function fetchRoomsAwaitingCleaning(): Promise<RoomWithType[]> {
-  const { data, error } = await supabase
-    .from('rooms')
-    .select('*, room_types(id, name)')
-    .eq('status', 'limpeza')
-    .order('number', { ascending: true })
-  if (error) throw error
-  return ((data as unknown as RoomWithType[]) ?? []).sort((a, b) => compareRoomNumbers(a.number, b.number))
+  return (await listRoomsWithType()).filter((room) => room.status === 'limpeza')
 }
 
 function rpcErrorMessage(error: unknown, fallback: string): string {

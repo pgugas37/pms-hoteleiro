@@ -22,28 +22,20 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '@/lib/auth-context'
-import { compareRoomNumbers } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 import { maintenanceRequestSchema, type MaintenanceRequestInput } from '@/lib/validations'
+import { listMaintenanceWithRoom, listRoomsWithType } from '@/offline/queries'
 import type { Role } from '@/types/auth'
 import { MAINTENANCE_STATUS_LABELS, type MaintenanceRequestWithRoom } from '@/types/maintenance'
 
 const REPORT_ROLES: Role[] = ['admin', 'gerente', 'recepcao', 'governanca', 'manutencao']
 const RESOLVE_ROLES: Role[] = ['admin', 'gerente', 'manutencao']
 
-async function fetchMaintenanceRequests(): Promise<MaintenanceRequestWithRoom[]> {
-  const { data, error } = await supabase
-    .from('maintenance_requests')
-    .select('*, rooms(id, number)')
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return (data as unknown as MaintenanceRequestWithRoom[]) ?? []
-}
+// Leituras da cópia local (funcionam sem internet). Reportar e resolver continuam precisando de internet.
+const fetchMaintenanceRequests: () => Promise<MaintenanceRequestWithRoom[]> = listMaintenanceWithRoom
 
 async function fetchRoomsForSelect(): Promise<{ id: string; number: string }[]> {
-  const { data, error } = await supabase.from('rooms').select('id, number').order('number', { ascending: true })
-  if (error) throw error
-  return (data ?? []).sort((a, b) => compareRoomNumbers(a.number, b.number))
+  return (await listRoomsWithType()).map(({ id, number }) => ({ id, number }))
 }
 
 function rpcErrorMessage(error: unknown, fallback: string): string {

@@ -13,6 +13,12 @@ import { useAuth } from '@/lib/auth-context'
 import { compareRoomNumbers, formatCurrency, toLocalIsoDate } from '@/lib/format'
 import { ROOM_STATUS_DOT, ROOM_TILE_CLASSES } from '@/lib/status'
 import { supabase } from '@/lib/supabase'
+import {
+  listPaymentsWithReservation,
+  listProfiles,
+  listReservationsWithRelations,
+  listRoomsWithType,
+} from '@/offline/queries'
 import { ROLES, ROLE_LABELS, type Role } from '@/types/auth'
 import { nightsBetween, type ReservationStatus } from '@/types/reservation'
 import { ROOM_STATUS_LABELS, type RoomStatus } from '@/types/room'
@@ -88,39 +94,42 @@ interface AuditEntry {
 }
 
 async function fetchUserStats(): Promise<{ role: Role; active: boolean }[]> {
-  const { data, error } = await supabase.from('profiles').select('role, active')
-  if (error) throw error
-  return (data ?? []) as { role: Role; active: boolean }[]
+  return (await listProfiles()).map(({ role, active }) => ({ role, active }))
 }
 
 async function fetchRoomStats(): Promise<DashboardRoom[]> {
-  const { data, error } = await supabase.from('rooms').select('id, number, floor, status')
-  if (error) throw error
-  return (data ?? []) as DashboardRoom[]
+  return (await listRoomsWithType()).map(({ id, number, floor, status }) => ({ id, number, floor, status }))
 }
 
 async function fetchRevenueStats(): Promise<{
   reservations: { daily_rate: number; check_in: string; check_out: string }[]
   payments: { amount: number }[]
 }> {
-  const [reservationsRes, paymentsRes] = await Promise.all([
-    supabase.from('reservations').select('daily_rate, check_in, check_out').neq('status', 'cancelada'),
-    supabase.from('payments').select('amount'),
-  ])
-  if (reservationsRes.error) throw reservationsRes.error
-  if (paymentsRes.error) throw paymentsRes.error
-  return { reservations: reservationsRes.data ?? [], payments: paymentsRes.data ?? [] }
+  const [reservations, payments] = await Promise.all([listReservationsWithRelations(), listPaymentsWithReservation()])
+  return {
+    reservations: reservations
+      .filter((r) => r.status !== 'cancelada')
+      .map(({ daily_rate, check_in, check_out }) => ({ daily_rate, check_in, check_out })),
+    payments: payments.map(({ amount }) => ({ amount })),
+  }
 }
 
 async function fetchTodayReservations(): Promise<TodayReservation[]> {
-  const { data, error } = await supabase
-    .from('reservations')
-    .select('id, guest_id, check_in, check_out, status, guests(full_name, birth_date), rooms(number)')
-    .in('status', ['confirmada', 'em_andamento'])
-    .order('check_in', { ascending: true })
-  if (error) throw error
-  return (data as unknown as TodayReservation[]) ?? []
+  return (await listReservationsWithRelations())
+    .filter((r) => r.status === 'confirmada' || r.status === 'em_andamento')
+    .sort((a, b) => a.check_in.localeCompare(b.check_in))
+    .map((r) => ({
+      id: r.id,
+      guest_id: r.guest_id,
+      check_in: r.check_in,
+      check_out: r.check_out,
+      status: r.status,
+      guests: r.guests ? { full_name: r.guests.full_name, birth_date: r.guests.birth_date ?? null } : null,
+      rooms: r.rooms ? { number: r.rooms.number } : null,
+    }))
 }
+
+/** Lê o audit_log no servidor (só admin): este card precisa de internet. */
 
 async function fetchAuditLog(): Promise<AuditEntry[]> {
   const { data, error } = await supabase
@@ -264,7 +273,7 @@ export function DashboardPage() {
     enabled: canSeeTodayPanel,
   })
 
-  const { data: auditLog } = useQuery({
+  const { data: auditLog, isError: auditError } = useQuery({
     queryKey: ['dashboard-audit-log'],
     queryFn: fetchAuditLog,
     enabled: isAdmin,
@@ -633,7 +642,10 @@ export function DashboardPage() {
               <CardDescription>Últimas alterações em usuários, reservas e pagamentos.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {(auditLog ?? []).length === 0 && (
+              {auditError && (
+                <p className="text-sm text-muted-foreground">Precisa de internet para mostrar a atividade recente.</p>
+              )}
+              {!auditError && (auditLog ?? []).length === 0 && (
                 <p className="text-sm text-muted-foreground">Nenhuma atividade registrada ainda.</p>
               )}
               <ol className="relative space-y-3 border-l border-border pl-5">

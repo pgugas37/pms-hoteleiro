@@ -25,7 +25,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '@/lib/auth-context'
-import { compareRoomNumbers, formatCurrency } from '@/lib/format'
+import { formatCurrency } from '@/lib/format'
 import { roomStatusVariant } from '@/lib/status'
 import { supabase } from '@/lib/supabase'
 import {
@@ -36,32 +36,14 @@ import {
   type RoomTypeInput,
   type SeasonalRateInput,
 } from '@/lib/validations'
+import { listRoomTypes, listRoomsWithType, listSeasonalRatesWithType } from '@/offline/queries'
 import { ROOM_STATUSES, ROOM_STATUS_LABELS, type RoomType, type RoomWithType } from '@/types/room'
 import type { SeasonalRateWithType } from '@/types/seasonalRate'
 
-async function fetchRoomTypes(): Promise<RoomType[]> {
-  const { data, error } = await supabase.from('room_types').select('*').order('name', { ascending: true })
-  if (error) throw error
-  return (data as RoomType[]) ?? []
-}
-
-async function fetchRooms(): Promise<RoomWithType[]> {
-  const { data, error } = await supabase
-    .from('rooms')
-    .select('*, room_types(id, name)')
-    .order('number', { ascending: true })
-  if (error) throw error
-  return ((data as unknown as RoomWithType[]) ?? []).sort((a, b) => compareRoomNumbers(a.number, b.number))
-}
-
-async function fetchSeasonalRates(): Promise<SeasonalRateWithType[]> {
-  const { data, error } = await supabase
-    .from('seasonal_rates')
-    .select('*, room_types(id, name)')
-    .order('start_date', { ascending: true })
-  if (error) throw error
-  return (data as unknown as SeasonalRateWithType[]) ?? []
-}
+// Leituras da cópia local (funcionam sem internet). Cadastrar, editar e excluir continuam precisando de internet.
+const fetchRoomTypes: () => Promise<RoomType[]> = listRoomTypes
+const fetchRooms: () => Promise<RoomWithType[]> = listRoomsWithType
+const fetchSeasonalRates: () => Promise<SeasonalRateWithType[]> = listSeasonalRatesWithType
 
 function errorCode(error: unknown): string | undefined {
   if (typeof error === 'object' && error !== null && 'code' in error) {

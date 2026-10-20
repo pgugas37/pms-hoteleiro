@@ -7,93 +7,10 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { reservationStatusVariant, roomStatusVariant } from '@/lib/status'
-import { supabase } from '@/lib/supabase'
-import { DOCUMENT_TYPE_LABELS, type DocumentType } from '@/types/guest'
-import { RESERVATION_STATUS_LABELS, type ReservationStatus } from '@/types/reservation'
-import { ROOM_STATUS_LABELS, type RoomStatus } from '@/types/room'
-
-interface GuestResult {
-  id: string
-  full_name: string
-  document_type: DocumentType
-  document_number: string
-}
-
-interface RoomResult {
-  id: string
-  number: string
-  status: RoomStatus
-  room_types: { name: string } | null
-}
-
-interface ReservationResult {
-  id: string
-  check_in: string
-  check_out: string
-  status: ReservationStatus
-  guests: { full_name: string } | null
-  rooms: { number: string } | null
-}
-
-interface GlobalSearchResults {
-  guests: GuestResult[]
-  rooms: RoomResult[]
-  reservations: ReservationResult[]
-}
-
-/** Remove caracteres que quebrariam a sintaxe de filtro do PostgREST (vírgula, parênteses, coringas). */
-function sanitizeTerm(term: string): string {
-  return term.replace(/[%_,()]/g, ' ').trim()
-}
-
-async function fetchGlobalSearch(term: string): Promise<GlobalSearchResults> {
-  const safe = sanitizeTerm(term)
-  if (!safe) return { guests: [], rooms: [], reservations: [] }
-  const pattern = `%${safe}%`
-
-  const [guestsResult, roomsResult, matchingGuestIds, matchingRoomIds] = await Promise.all([
-    supabase
-      .from('guests')
-      .select('id, full_name, document_type, document_number')
-      .or(`full_name.ilike.${pattern},document_number.ilike.${pattern}`)
-      .order('full_name', { ascending: true })
-      .limit(6),
-    supabase
-      .from('rooms')
-      .select('id, number, status, room_types(name)')
-      .ilike('number', pattern)
-      .order('number', { ascending: true })
-      .limit(6),
-    supabase.from('guests').select('id').ilike('full_name', pattern).limit(30),
-    supabase.from('rooms').select('id').ilike('number', pattern).limit(30),
-  ])
-  if (guestsResult.error) throw guestsResult.error
-  if (roomsResult.error) throw roomsResult.error
-  if (matchingGuestIds.error) throw matchingGuestIds.error
-  if (matchingRoomIds.error) throw matchingRoomIds.error
-
-  const guests = (guestsResult.data ?? []) as unknown as GuestResult[]
-  const rooms = (roomsResult.data ?? []) as unknown as RoomResult[]
-  const guestIds = (matchingGuestIds.data ?? []).map((g) => g.id)
-  const roomIds = (matchingRoomIds.data ?? []).map((r) => r.id)
-
-  let reservations: ReservationResult[] = []
-  if (guestIds.length > 0 || roomIds.length > 0) {
-    const orParts: string[] = []
-    if (guestIds.length > 0) orParts.push(`guest_id.in.(${guestIds.join(',')})`)
-    if (roomIds.length > 0) orParts.push(`room_id.in.(${roomIds.join(',')})`)
-    const { data, error } = await supabase
-      .from('reservations')
-      .select('id, check_in, check_out, status, guests(full_name), rooms(number)')
-      .or(orParts.join(','))
-      .order('check_in', { ascending: false })
-      .limit(8)
-    if (error) throw error
-    reservations = (data ?? []) as unknown as ReservationResult[]
-  }
-
-  return { guests, rooms, reservations }
-}
+import { searchEverything } from '@/offline/queries'
+import { DOCUMENT_TYPE_LABELS } from '@/types/guest'
+import { RESERVATION_STATUS_LABELS } from '@/types/reservation'
+import { ROOM_STATUS_LABELS } from '@/types/room'
 
 const RESULT_BUTTON_CLASS =
   'flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none'
@@ -147,7 +64,7 @@ export function GlobalSearchDialog() {
   const trimmed = debouncedTerm.trim()
   const { data: results, isFetching } = useQuery({
     queryKey: ['global-search', trimmed],
-    queryFn: () => fetchGlobalSearch(trimmed),
+    queryFn: () => searchEverything(trimmed),
     enabled: trimmed.length >= 2,
   })
 

@@ -31,6 +31,7 @@ import { generateMonthlyReportPdf } from '@/lib/monthlyReport'
 import { generatePaymentReceiptPdf } from '@/lib/receipt'
 import { supabase } from '@/lib/supabase'
 import { paymentSchema, type PaymentInput } from '@/lib/validations'
+import { countRooms, listGuests, listPaymentsWithReservation, listReservationsWithRelations } from '@/offline/queries'
 import type { Role } from '@/types/auth'
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, type PaymentWithReservation } from '@/types/payment'
 import {
@@ -112,24 +113,12 @@ function getPeriodRange(
   return { start: null, end: null }
 }
 
+// Leituras da cópia local (funcionam sem internet).
 async function fetchBillableReservations(): Promise<ReservationWithRelations[]> {
-  const { data, error } = await supabase
-    .from('reservations')
-    .select('*, guests(id, full_name), rooms(id, number, room_types(id, name))')
-    .neq('status', 'cancelada')
-    .order('check_in', { ascending: false })
-  if (error) throw error
-  return (data as unknown as ReservationWithRelations[]) ?? []
+  return (await listReservationsWithRelations()).filter((r) => r.status !== 'cancelada')
 }
 
-async function fetchPayments(): Promise<PaymentWithReservation[]> {
-  const { data, error } = await supabase
-    .from('payments')
-    .select('*, reservations(id, check_in, check_out, guests(id, full_name), rooms(id, number))')
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return (data as unknown as PaymentWithReservation[]) ?? []
-}
+const fetchPayments: () => Promise<PaymentWithReservation[]> = listPaymentsWithReservation
 
 interface KpiReservation {
   check_in: string
@@ -140,21 +129,12 @@ interface KpiReservation {
 /** Reservas (não canceladas) cuja estadia toca o período [start, end] (inclusive), pra calcular indicadores. */
 async function fetchKpiReservations(start: string, end: string): Promise<KpiReservation[]> {
   const windowEnd = addDays(end, 1)
-  const { data, error } = await supabase
-    .from('reservations')
-    .select('check_in, check_out, daily_rate')
-    .neq('status', 'cancelada')
-    .lt('check_in', windowEnd)
-    .gt('check_out', start)
-  if (error) throw error
-  return (data ?? []) as KpiReservation[]
+  return (await listReservationsWithRelations())
+    .filter((r) => r.status !== 'cancelada' && r.check_in < windowEnd && r.check_out > start)
+    .map(({ check_in, check_out, daily_rate }) => ({ check_in, check_out, daily_rate }))
 }
 
-async function fetchTotalRooms(): Promise<number> {
-  const { count, error } = await supabase.from('rooms').select('*', { count: 'exact', head: true })
-  if (error) throw error
-  return count ?? 0
-}
+const fetchTotalRooms = countRooms
 
 /** Primeiro e último dia (ISO, inclusive) do mês de um valor "AAAA-MM" (o que o input type="month" devolve). */
 function monthRange(monthStr: string): { start: string; end: string; label: string } {
@@ -174,25 +154,17 @@ interface ReservationStatusRow {
 
 /** Reservas com check-in dentro do mês (qualquer status, inclusive canceladas — pra contar no-show). */
 async function fetchReservationsForMonth(start: string, end: string): Promise<ReservationStatusRow[]> {
-  const { data, error } = await supabase
-    .from('reservations')
-    .select('status, cancellation_reason')
-    .gte('check_in', start)
-    .lte('check_in', end)
-  if (error) throw error
-  return (data ?? []) as ReservationStatusRow[]
+  return (await listReservationsWithRelations())
+    .filter((r) => r.check_in >= start && r.check_in <= end)
+    .map(({ status, cancellation_reason }) => ({ status, cancellation_reason }))
 }
 
-/** Quantidade de hóspedes cadastrados dentro do mês. */
+/** Quantidade de hóspedes cadastrados dentro do mês (pela data local do cadastro). */
 async function fetchNewGuestsCount(start: string, end: string): Promise<number> {
-  const windowEnd = addDays(end, 1)
-  const { count, error } = await supabase
-    .from('guests')
-    .select('*', { count: 'exact', head: true })
-    .gte('created_at', `${start}T00:00:00`)
-    .lt('created_at', `${windowEnd}T00:00:00`)
-  if (error) throw error
-  return count ?? 0
+  return (await listGuests()).filter((g) => {
+    const day = toIsoDate(new Date(g.created_at))
+    return day >= start && day <= end
+  }).length
 }
 
 function rpcErrorMessage(error: unknown, fallback: string): string {

@@ -27,12 +27,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/lib/auth-context'
-import { compareRoomNumbers, formatCurrency, toLocalIsoDate } from '@/lib/format'
+import { formatCurrency, toLocalIsoDate } from '@/lib/format'
 import { fetchHotel } from '@/lib/hotel'
 import { generateGuestRegistrationPdf } from '@/lib/registration'
 import { reservationStatusVariant } from '@/lib/status'
 import { supabase } from '@/lib/supabase'
 import { groupReservationSchema, reservationSchema, type GroupReservationInput, type ReservationInput } from '@/lib/validations'
+import {
+  listActiveGuestsForSelect,
+  listReservationsWithRelations,
+  listRoomsWithType,
+  overlappingRoomIds,
+  seasonalRateFor,
+  seasonalRatesForDate,
+  type RoomOption,
+} from '@/offline/queries'
 import type { Role } from '@/types/auth'
 import type { Guest } from '@/types/guest'
 import {
@@ -45,84 +54,20 @@ import {
   type ReservationStatus,
   type ReservationWithRelations,
 } from '@/types/reservation'
-import type { Room } from '@/types/room'
 
 const STAFF_ROLES: Role[] = ['admin', 'gerente', 'recepcao']
 const ACTIVE_STATUSES: ReservationStatus[] = ['confirmada', 'em_andamento']
 
-interface RoomOption extends Room {
-  room_types: { id: string; name: string; base_price: number } | null
-}
-
-async function fetchReservations(): Promise<ReservationWithRelations[]> {
-  const { data, error } = await supabase
-    .from('reservations')
-    .select(
-      '*, guests(id, full_name, document_type, document_number, nationality, birth_date), rooms(id, number, room_types(id, name))'
-    )
-    .order('check_in', { ascending: false })
-  if (error) throw error
-  return (data as unknown as ReservationWithRelations[]) ?? []
-}
-
-async function fetchGuestsForSelect(): Promise<Pick<Guest, 'id' | 'full_name'>[]> {
-  const { data, error } = await supabase
-    .from('guests')
-    .select('id, full_name')
-    .eq('active', true)
-    .order('full_name', { ascending: true })
-  if (error) throw error
-  return data ?? []
-}
-
-async function fetchRoomsForSelect(): Promise<RoomOption[]> {
-  const { data, error } = await supabase
-    .from('rooms')
-    .select('*, room_types(id, name, base_price)')
-    .order('number', { ascending: true })
-  if (error) throw error
-  return ((data as unknown as RoomOption[]) ?? []).sort((a, b) => compareRoomNumbers(a.number, b.number))
-}
-
+// Leituras da cópia local (funcionam sem internet).
+const fetchReservations = listReservationsWithRelations
+const fetchGuestsForSelect = listActiveGuestsForSelect
+const fetchRoomsForSelect = listRoomsWithType
 /** Tarifa sazonal (se houver) do tipo de quarto que cobre a data informada — no máximo uma, garantido pelo banco. */
-async function fetchSeasonalRate(roomTypeId: string, date: string): Promise<number | null> {
-  const { data, error } = await supabase
-    .from('seasonal_rates')
-    .select('daily_rate')
-    .eq('room_type_id', roomTypeId)
-    .lte('start_date', date)
-    .gte('end_date', date)
-    .maybeSingle()
-  if (error) throw error
-  return data ? Number(data.daily_rate) : null
-}
-
+const fetchSeasonalRate = seasonalRateFor
 /** Tarifas sazonais (se houver) de vários tipos de quarto que cobrem a data informada, uma por tipo. */
-async function fetchSeasonalRatesForDate(roomTypeIds: string[], date: string): Promise<Map<string, number>> {
-  if (roomTypeIds.length === 0) return new Map()
-  const { data, error } = await supabase
-    .from('seasonal_rates')
-    .select('room_type_id, daily_rate')
-    .in('room_type_id', roomTypeIds)
-    .lte('start_date', date)
-    .gte('end_date', date)
-  if (error) throw error
-  const map = new Map<string, number>()
-  for (const row of data ?? []) map.set(row.room_type_id, Number(row.daily_rate))
-  return map
-}
-
+const fetchSeasonalRatesForDate = seasonalRatesForDate
 /** IDs de quartos com alguma reserva ativa cujo período cruza com [checkIn, checkOut). */
-async function fetchOverlappingRoomIds(checkIn: string, checkOut: string): Promise<Set<string>> {
-  const { data, error } = await supabase
-    .from('reservations')
-    .select('room_id')
-    .neq('status', 'cancelada')
-    .lt('check_in', checkOut)
-    .gt('check_out', checkIn)
-  if (error) throw error
-  return new Set((data ?? []).map((row) => row.room_id))
-}
+const fetchOverlappingRoomIds = (checkIn: string, checkOut: string) => overlappingRoomIds(checkIn, checkOut)
 
 function errorCode(error: unknown): string | undefined {
   if (typeof error === 'object' && error !== null && 'code' in error) {

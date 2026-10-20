@@ -5,9 +5,9 @@ import * as React from 'react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { compareRoomNumbers, toLocalIsoDate } from '@/lib/format'
-import { supabase } from '@/lib/supabase'
+import { toLocalIsoDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { listReservationsWithRelations, listRoomsWithType } from '@/offline/queries'
 import type { ReservationStatus } from '@/types/reservation'
 import type { RoomWithType } from '@/types/room'
 
@@ -30,24 +30,20 @@ function addDays(isoDate: string, amount: number): string {
   return toIsoDate(date)
 }
 
-async function fetchRooms(): Promise<RoomWithType[]> {
-  const { data, error } = await supabase
-    .from('rooms')
-    .select('*, room_types(id, name)')
-    .order('number', { ascending: true })
-  if (error) throw error
-  return ((data as unknown as RoomWithType[]) ?? []).sort((a, b) => compareRoomNumbers(a.number, b.number))
-}
+// Leituras da cópia local (funcionam sem internet).
+const fetchRooms: () => Promise<RoomWithType[]> = listRoomsWithType
 
 async function fetchWindowReservations(start: string, end: string): Promise<MapReservation[]> {
-  const { data, error } = await supabase
-    .from('reservations')
-    .select('room_id, check_in, check_out, status, occupant_name, guests(full_name)')
-    .neq('status', 'cancelada')
-    .lt('check_in', end)
-    .gt('check_out', start)
-  if (error) throw error
-  return (data as unknown as MapReservation[]) ?? []
+  return (await listReservationsWithRelations())
+    .filter((r) => r.status !== 'cancelada' && r.check_in < end && r.check_out > start)
+    .map((r) => ({
+      room_id: r.room_id,
+      check_in: r.check_in,
+      check_out: r.check_out,
+      status: r.status,
+      occupant_name: r.occupant_name,
+      guests: r.guests ? { full_name: r.guests.full_name } : null,
+    }))
 }
 
 export function OccupancyMapPage() {

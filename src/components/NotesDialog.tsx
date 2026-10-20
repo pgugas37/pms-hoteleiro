@@ -18,19 +18,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
 import { internalNoteSchema, type InternalNoteInput } from '@/lib/validations'
+import { listNotes } from '@/offline/queries'
 import type { InternalNote } from '@/types/note'
 
 type NoteSubjectType = 'guest' | 'room'
 
-async function fetchNotes(subjectType: NoteSubjectType, subjectId: string): Promise<InternalNote[]> {
-  const column = subjectType === 'guest' ? 'guest_id' : 'room_id'
-  const { data, error } = await supabase
-    .from('internal_notes')
-    .select('*')
-    .eq(column, subjectId)
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return (data as InternalNote[]) ?? []
+/** Histórico lido da cópia local (funciona sem internet). Adicionar e excluir continuam precisando de internet. */
+function fetchNotes(subjectType: NoteSubjectType, subjectId: string): Promise<InternalNote[]> {
+  return listNotes(subjectType, subjectId)
 }
 
 /**
