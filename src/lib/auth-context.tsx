@@ -3,6 +3,7 @@ import * as React from 'react'
 
 import { supabase } from '@/lib/supabase'
 import { decideStartupMode, type AuthMode } from '@/offline/auth-mode'
+import { browserSaysOffline, isSimulatedOffline } from '@/offline/connectivity'
 import { wipeLocalDataSafely } from '@/offline/db'
 import { clearIdentity, loadIdentity, markServerContact, offlineAccessExpired, saveIdentity } from '@/offline/identity'
 import type { Profile } from '@/types/auth'
@@ -38,13 +39,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signingOut = React.useRef(false)
 
   const loadProfile = React.useCallback(async (current: Session) => {
-    const { data, error, status } = await supabase.from('profiles').select('*').eq('id', current.user.id).maybeSingle()
-    if (error && (status === 0 || status >= 500)) {
-      // sem rede: usa o perfil guardado, se for a mesma pessoa
+    const useSavedProfile = () => {
       const identity = loadIdentity()
       setProfile(identity?.userId === current.user.id ? identity.profile : null)
-      return
     }
+    // Sabidamente sem rede: nem tenta (a biblioteca repete a busca algumas vezes e a abertura demorava ~5 s).
+    if (browserSaysOffline() || isSimulatedOffline()) return useSavedProfile()
+    const { data, error, status } = await supabase.from('profiles').select('*').eq('id', current.user.id).maybeSingle()
+    if (error && (status === 0 || status >= 500)) return useSavedProfile() // sem rede: perfil guardado
     const loaded = (data as Profile | null) ?? null
     setProfile(loaded)
     if (loaded) {
