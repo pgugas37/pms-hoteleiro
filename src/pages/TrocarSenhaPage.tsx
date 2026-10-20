@@ -12,10 +12,12 @@ import { useAuth } from '@/lib/auth-context'
 import { passwordUpdateErrorMessage } from '@/lib/authErrors'
 import { supabase } from '@/lib/supabase'
 import { newPasswordSchema, type NewPasswordInput } from '@/lib/validations'
+import { OFFLINE_HINT, useIsOnline } from '@/offline/sync-context'
 import { ROLE_LABELS } from '@/types/auth'
 
 export function TrocarSenhaPage() {
   const { profile } = useAuth()
+  const online = useIsOnline()
   const [submitting, setSubmitting] = React.useState(false)
 
   const {
@@ -66,7 +68,8 @@ export function TrocarSenhaPage() {
                 <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
               )}
             </div>
-            <Button type="submit" disabled={submitting}>
+            {!online && <p className="text-sm text-muted-foreground">Precisa de internet para trocar a senha.</p>}
+            <Button type="submit" disabled={submitting || !online} title={online ? undefined : OFFLINE_HINT}>
               {submitting ? 'Salvando...' : 'Salvar nova senha'}
             </Button>
           </form>

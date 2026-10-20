@@ -5,11 +5,15 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { AuthHeading, AuthShell } from '@/components/AuthShell'
+import { useConfirm } from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
+import { isSimulatedOffline } from '@/offline/connectivity'
+import { loadIdentity } from '@/offline/identity'
+import { outboxCounts } from '@/offline/outbox'
 import {
   forgotPasswordSchema,
   loginSchema,
@@ -88,8 +92,9 @@ function ForgotPasswordForm({ defaultEmail, onBack }: { defaultEmail: string; on
 }
 
 export function LoginPage() {
-  const { session } = useAuth()
+  const { isAuthenticated, needsLogin } = useAuth()
   const location = useLocation()
+  const confirm = useConfirm()
   const [submitting, setSubmitting] = React.useState(false)
   const [mode, setMode] = React.useState<'login' | 'forgot'>('login')
 
@@ -100,13 +105,30 @@ export function LoginPage() {
     formState: { errors },
   } = useForm<LoginInput>({ resolver: zodResolver(loginSchema) })
 
-  if (session) {
+  if (isAuthenticated) {
     const from = (location.state as { from?: Location })?.from?.pathname ?? '/'
     return <Navigate to={from} replace />
   }
 
   async function onSubmit(values: LoginInput) {
     setSubmitting(true)
+    // Outra pessoa entrando num aparelho com ações não enviadas: a cópia antiga será apagada.
+    const identity = loadIdentity()
+    if (identity?.email && identity.email.toLowerCase() !== values.email.toLowerCase()) {
+      const { pending, rejected } = await outboxCounts()
+      if (pending + rejected > 0) {
+        const ok = await confirm({
+          title: 'Entrar com outro usuário?',
+          description: `Este aparelho tem ${pending + rejected} ação(ões) de ${identity.profile.full_name} que ainda não chegaram ao banco. Entrar com outro usuário apaga essas ações.`,
+          confirmLabel: 'Entrar e apagar',
+          destructive: true,
+        })
+        if (!ok) {
+          setSubmitting(false)
+          return
+        }
+      }
+    }
     const { error } = await supabase.auth.signInWithPassword(values)
     setSubmitting(false)
     if (error) {
@@ -125,6 +147,16 @@ export function LoginPage() {
   return (
     <AuthShell>
       <AuthHeading title="Entrar" description="Use o e-mail e a senha da sua conta na equipe do hotel." />
+      {(isSimulatedOffline() || !navigator.onLine) && (
+        <p className="mb-5 rounded-lg border border-status-cleaning/40 bg-status-cleaning/10 px-3 py-2 text-sm">
+          Sem internet. O primeiro acesso neste aparelho precisa de internet.
+        </p>
+      )}
+      {needsLogin && (
+        <p className="mb-5 rounded-lg border border-status-confirmed/30 bg-status-confirmed/5 px-3 py-2 text-sm">
+          Sua sessão expirou. Entre de novo: o que foi feito neste aparelho continua guardado e será enviado em seguida.
+        </p>
+      )}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="email">E-mail</Label>

@@ -1,10 +1,11 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 
 import simboloUrl from '@/assets/brand/millenium-simbolo.png'
+import { OfflineLockScreen } from '@/components/OfflineLockScreen'
 import { useAuth } from '@/lib/auth-context'
 
 export function ProtectedRoute() {
-  const { session, loading } = useAuth()
+  const { isAuthenticated, mode, loading } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -16,7 +17,11 @@ export function ProtectedRoute() {
     )
   }
 
-  if (!session) {
+  if (mode === 'bloqueado') {
+    return <OfflineLockScreen />
+  }
+
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 

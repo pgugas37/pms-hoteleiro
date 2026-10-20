@@ -3,11 +3,13 @@ import { LogOut, Menu } from 'lucide-react'
 import * as React from 'react'
 import { Outlet } from 'react-router-dom'
 
+import { useConfirm } from '@/components/ConfirmDialog'
 import { GlobalSearchDialog } from '@/components/GlobalSearchDialog'
 import { Sidebar } from '@/components/Sidebar'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { fetchHotel } from '@/lib/hotel'
+import { useSync } from '@/offline/sync-context'
 import { ROLE_LABELS } from '@/types/auth'
 
 function initials(fullName: string): string {
@@ -19,10 +21,26 @@ function initials(fullName: string): string {
 
 export function AppLayout() {
   const { profile, signOut } = useAuth()
+  const { state } = useSync()
+  const confirm = useConfirm()
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false)
   const closeMobileNav = React.useCallback(() => setMobileNavOpen(false), [])
 
   const { data: hotel } = useQuery({ queryKey: ['hotel'], queryFn: fetchHotel })
+
+  async function handleSignOut() {
+    const unsent = state.pending + state.rejected
+    if (unsent > 0) {
+      const ok = await confirm({
+        title: 'Sair e perder o que não foi enviado?',
+        description: `${unsent === 1 ? '1 ação ainda não foi enviada' : `${unsent} ações ainda não foram enviadas`} ao banco e ${unsent === 1 ? 'será apagada' : 'serão apagadas'} deste aparelho. Se puder, conecte-se à internet e espere o envio antes de sair.`,
+        confirmLabel: 'Sair mesmo assim',
+        destructive: true,
+      })
+      if (!ok) return
+    }
+    await signOut()
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -61,7 +79,7 @@ export function AppLayout() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => signOut()}
+              onClick={() => void handleSignOut()}
               className="text-muted-foreground hover:text-foreground"
               aria-label="Sair"
             >
