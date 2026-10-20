@@ -35,7 +35,7 @@ export function AuditPage() {
   const [actionFilter, setActionFilter] = React.useState<AuditAction | 'todas'>('todas')
   const [detailEntry, setDetailEntry] = React.useState<AuditLogEntry | null>(null)
 
-  const { data: entries, isLoading } = useQuery({ queryKey: ['audit-log-full'], queryFn: fetchAuditLog })
+  const { data: entries, isLoading, isError } = useQuery({ queryKey: ['audit-log-full'], queryFn: fetchAuditLog })
 
   const actorIds = React.useMemo(
     () => Array.from(new Set((entries ?? []).map((e) => e.actor_id).filter((id): id is string => !!id))),
@@ -98,7 +98,8 @@ export function AuditPage() {
           </div>
 
           {isLoading && <p className="text-sm text-muted-foreground">Carregando...</p>}
-          {!isLoading && filteredEntries.length === 0 && (
+          {isError && <p className="text-sm text-muted-foreground">Precisa de internet para abrir esta tela.</p>}
+          {!isLoading && !isError && filteredEntries.length === 0 && (
             <p className="text-sm text-muted-foreground">Nenhum registro encontrado com esse filtro.</p>
           )}
 

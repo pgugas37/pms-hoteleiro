@@ -1,12 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { supabase } from '@/lib/supabase'
+import * as actions from '@/offline/actions'
 import { listRoomsWithType } from '@/offline/queries'
+import { useActor } from '@/offline/use-actor'
 import type { RoomWithType } from '@/types/room'
 
 /** Quartos aguardando limpeza, lidos da cópia local (funciona sem internet). */
@@ -14,34 +15,19 @@ async function fetchRoomsAwaitingCleaning(): Promise<RoomWithType[]> {
   return (await listRoomsWithType()).filter((room) => room.status === 'limpeza')
 }
 
-function rpcErrorMessage(error: unknown, fallback: string): string {
-  if (typeof error === 'object' && error !== null && 'message' in error) {
-    const message = (error as { message?: string }).message
-    if (message) return message
-  }
-  return fallback
-}
-
 export function GovernancaPage() {
-  const queryClient = useQueryClient()
+  const actor = useActor()
 
   const { data: rooms, isLoading } = useQuery({
     queryKey: ['governanca-rooms'],
     queryFn: fetchRoomsAwaitingCleaning,
   })
 
+  // Funciona sem internet: libera o quarto na cópia local e entra no caderninho de envio.
   const markClean = useMutation({
-    mutationFn: async (roomId: string) => {
-      const { error } = await supabase.rpc('mark_room_clean', { p_room_id: roomId })
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['governanca-rooms'] })
-      queryClient.invalidateQueries({ queryKey: ['rooms-select'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard-room-stats'] })
-      toast.success('Quarto marcado como limpo.')
-    },
-    onError: (error) => toast.error(rpcErrorMessage(error, 'Não foi possível marcar o quarto como limpo.')),
+    mutationFn: (roomId: string) => actions.markRoomClean(actions.requireActor(actor), roomId),
+    onSuccess: () => toast.success('Quarto marcado como limpo.'),
+    onError: (error) => toast.error(actions.actionErrorMessage(error, 'Não foi possível marcar o quarto como limpo.')),
   })
 
   return (

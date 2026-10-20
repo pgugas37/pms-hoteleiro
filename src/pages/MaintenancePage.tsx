@@ -24,7 +24,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
 import { maintenanceRequestSchema, type MaintenanceRequestInput } from '@/lib/validations'
+import { emitServerChange } from '@/offline/events'
 import { listMaintenanceWithRoom, listRoomsWithType } from '@/offline/queries'
+import { OFFLINE_HINT, useIsOnline } from '@/offline/sync-context'
 import type { Role } from '@/types/auth'
 import { MAINTENANCE_STATUS_LABELS, type MaintenanceRequestWithRoom } from '@/types/maintenance'
 
@@ -51,6 +53,7 @@ export function MaintenancePage() {
   const canReport = !!profile && REPORT_ROLES.includes(profile.role)
   const canResolve = !!profile && RESOLVE_ROLES.includes(profile.role)
   const queryClient = useQueryClient()
+  const online = useIsOnline()
 
   const { data: requests, isLoading } = useQuery({
     queryKey: ['maintenance-requests'],
@@ -72,6 +75,7 @@ export function MaintenancePage() {
       queryClient.invalidateQueries({ queryKey: ['maintenance-requests'] })
       queryClient.invalidateQueries({ queryKey: ['rooms-select'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-room-stats'] })
+      emitServerChange()
       toast.success('Chamado resolvido.')
     },
     onError: (error) => toast.error(rpcErrorMessage(error, 'Não foi possível resolver o chamado.')),
@@ -123,7 +127,8 @@ export function MaintenancePage() {
                         <Button
                           size="sm"
                           onClick={() => resolveRequest.mutate(request.id)}
-                          disabled={resolveRequest.isPending}
+                          disabled={resolveRequest.isPending || !online}
+                          title={online ? undefined : OFFLINE_HINT}
                         >
                           Resolver
                         </Button>
@@ -177,6 +182,7 @@ export function MaintenancePage() {
 
 function ReportDialog({ rooms }: { rooms: { id: string; number: string }[] }) {
   const queryClient = useQueryClient()
+  const online = useIsOnline()
   const [open, setOpen] = React.useState(false)
 
   const {
@@ -203,6 +209,7 @@ function ReportDialog({ rooms }: { rooms: { id: string; number: string }[] }) {
       queryClient.invalidateQueries({ queryKey: ['maintenance-requests'] })
       queryClient.invalidateQueries({ queryKey: ['rooms-select'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-room-stats'] })
+      emitServerChange()
       toast.success('Problema reportado.')
       reset()
       setOpen(false)
@@ -213,7 +220,9 @@ function ReportDialog({ rooms }: { rooms: { id: string; number: string }[] }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button disabled={rooms.length === 0}>Reportar problema</Button>
+        <Button disabled={rooms.length === 0 || !online} title={online ? undefined : OFFLINE_HINT}>
+          Reportar problema
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

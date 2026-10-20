@@ -18,7 +18,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
 import { internalNoteSchema, type InternalNoteInput } from '@/lib/validations'
+import { emitServerChange } from '@/offline/events'
 import { listNotes } from '@/offline/queries'
+import { useIsOnline } from '@/offline/sync-context'
 import type { InternalNote } from '@/types/note'
 
 type NoteSubjectType = 'guest' | 'room'
@@ -46,6 +48,7 @@ export function NotesDialog({
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
   const confirm = useConfirm()
+  const online = useIsOnline()
   const [open, setOpen] = React.useState(false)
   const queryKey = ['internal-notes', subjectType, subjectId]
 
@@ -78,6 +81,7 @@ export function NotesDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey })
+      emitServerChange()
       reset()
       toast.success('Observação registrada.')
     },
@@ -91,6 +95,7 @@ export function NotesDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey })
+      emitServerChange()
       toast.success('Observação excluída.')
     },
     onError: () => toast.error('Não foi possível excluir a observação.'),
@@ -118,8 +123,9 @@ export function NotesDialog({
         >
           <Textarea placeholder="Escreva uma observação..." rows={3} {...register('content')} />
           {errors.content && <p className="text-sm text-destructive">{errors.content.message}</p>}
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={addNote.isPending}>
+          <div className="flex items-center justify-end gap-3">
+            {!online && <span className="text-xs text-muted-foreground">Precisa de internet para adicionar.</span>}
+            <Button type="submit" size="sm" disabled={addNote.isPending || !online}>
               {addNote.isPending ? 'Salvando...' : 'Adicionar'}
             </Button>
           </div>
@@ -138,7 +144,7 @@ export function NotesDialog({
                   <span className="text-xs text-muted-foreground">
                     {new Date(note.created_at).toLocaleString('pt-BR')}
                   </span>
-                  {isAdmin && (
+                  {isAdmin && online && (
                     <button
                       type="button"
                       className="text-xs text-destructive hover:underline"

@@ -36,7 +36,9 @@ import {
   type RoomTypeInput,
   type SeasonalRateInput,
 } from '@/lib/validations'
+import { emitServerChange } from '@/offline/events'
 import { listRoomTypes, listRoomsWithType, listSeasonalRatesWithType } from '@/offline/queries'
+import { OFFLINE_HINT, useIsOnline } from '@/offline/sync-context'
 import { ROOM_STATUSES, ROOM_STATUS_LABELS, type RoomType, type RoomWithType } from '@/types/room'
 import type { SeasonalRateWithType } from '@/types/seasonalRate'
 
@@ -56,6 +58,7 @@ export function RoomsPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
+  const online = useIsOnline()
   const confirm = useConfirm()
   const [searchParams] = useSearchParams()
   const [roomSearch, setRoomSearch] = React.useState(() => searchParams.get('q') ?? '')
@@ -77,6 +80,7 @@ export function RoomsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['room-types'] })
+      emitServerChange()
       toast.success('Tipo de quarto excluído.')
     },
     onError: (error) => {
@@ -95,6 +99,7 @@ export function RoomsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      emitServerChange()
       toast.success('Quarto excluído.')
     },
     onError: (error) => {
@@ -113,6 +118,7 @@ export function RoomsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['seasonal-rates'] })
+      emitServerChange()
       toast.success('Tarifa sazonal excluída.')
     },
     onError: () => toast.error('Não foi possível excluir a tarifa sazonal.'),
@@ -171,6 +177,8 @@ export function RoomsPage() {
                         <Button
                           variant="outline"
                           size="sm"
+                          disabled={!online}
+                          title={online ? undefined : OFFLINE_HINT}
                           onClick={async () => {
                             const ok = await confirm({
                               title: `Excluir o tipo "${type.name}"?`,
@@ -251,6 +259,8 @@ export function RoomsPage() {
                         <Button
                           variant="outline"
                           size="sm"
+                          disabled={!online}
+                          title={online ? undefined : OFFLINE_HINT}
                           onClick={async () => {
                             const ok = await confirm({
                               title: `Excluir o quarto ${room.number}?`,
@@ -325,6 +335,8 @@ export function RoomsPage() {
                         <Button
                           variant="outline"
                           size="sm"
+                          disabled={!online}
+                          title={online ? undefined : OFFLINE_HINT}
                           onClick={async () => {
                             const ok = await confirm({
                               title: `Excluir a tarifa "${rate.label}"?`,
@@ -356,6 +368,7 @@ export function RoomsPage() {
 
 function RoomTypeDialog({ roomType }: { roomType?: RoomType }) {
   const queryClient = useQueryClient()
+  const online = useIsOnline()
   const [open, setOpen] = React.useState(false)
   const isEdit = !!roomType
 
@@ -393,6 +406,7 @@ function RoomTypeDialog({ roomType }: { roomType?: RoomType }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['room-types'] })
+      emitServerChange()
       toast.success(isEdit ? 'Tipo de quarto atualizado.' : 'Tipo de quarto criado.')
       reset()
       setOpen(false)
@@ -403,7 +417,12 @@ function RoomTypeDialog({ roomType }: { roomType?: RoomType }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={isEdit ? 'outline' : 'default'} size={isEdit ? 'sm' : 'default'}>
+        <Button
+          variant={isEdit ? 'outline' : 'default'}
+          size={isEdit ? 'sm' : 'default'}
+          disabled={!online}
+          title={online ? undefined : OFFLINE_HINT}
+        >
           {isEdit ? 'Editar' : 'Novo tipo'}
         </Button>
       </DialogTrigger>
@@ -456,6 +475,7 @@ function RoomTypeDialog({ roomType }: { roomType?: RoomType }) {
 
 function RoomDialog({ room, roomTypes }: { room?: RoomWithType; roomTypes: RoomType[] }) {
   const queryClient = useQueryClient()
+  const online = useIsOnline()
   const [open, setOpen] = React.useState(false)
   const isEdit = !!room
 
@@ -494,6 +514,7 @@ function RoomDialog({ room, roomTypes }: { room?: RoomWithType; roomTypes: RoomT
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      emitServerChange()
       toast.success(isEdit ? 'Quarto atualizado.' : 'Quarto criado.')
       reset()
       setOpen(false)
@@ -509,7 +530,8 @@ function RoomDialog({ room, roomTypes }: { room?: RoomWithType; roomTypes: RoomT
         <Button
           variant={isEdit ? 'outline' : 'default'}
           size={isEdit ? 'sm' : 'default'}
-          disabled={!isEdit && roomTypes.length === 0}
+          disabled={(!isEdit && roomTypes.length === 0) || !online}
+          title={online ? undefined : OFFLINE_HINT}
         >
           {isEdit ? 'Editar' : 'Novo quarto'}
         </Button>
@@ -597,6 +619,7 @@ function SeasonalRateDialog({
   roomTypes: RoomType[]
 }) {
   const queryClient = useQueryClient()
+  const online = useIsOnline()
   const [open, setOpen] = React.useState(false)
   const isEdit = !!seasonalRate
 
@@ -635,6 +658,7 @@ function SeasonalRateDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['seasonal-rates'] })
+      emitServerChange()
       toast.success(isEdit ? 'Tarifa sazonal atualizada.' : 'Tarifa sazonal criada.')
       reset()
       setOpen(false)
@@ -654,7 +678,8 @@ function SeasonalRateDialog({
         <Button
           variant={isEdit ? 'outline' : 'default'}
           size={isEdit ? 'sm' : 'default'}
-          disabled={!isEdit && roomTypes.length === 0}
+          disabled={(!isEdit && roomTypes.length === 0) || !online}
+          title={online ? undefined : OFFLINE_HINT}
         >
           {isEdit ? 'Editar' : 'Nova tarifa'}
         </Button>

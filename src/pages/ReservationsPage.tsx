@@ -33,6 +33,11 @@ import { generateGuestRegistrationPdf } from '@/lib/registration'
 import { reservationStatusVariant } from '@/lib/status'
 import { supabase } from '@/lib/supabase'
 import { groupReservationSchema, reservationSchema, type GroupReservationInput, type ReservationInput } from '@/lib/validations'
+import { PendingBadge } from '@/components/PendingBadge'
+import * as actions from '@/offline/actions'
+import { emitServerChange } from '@/offline/events'
+import { OFFLINE_HINT, useIsOnline } from '@/offline/sync-context'
+import { useActor } from '@/offline/use-actor'
 import {
   listActiveGuestsForSelect,
   listReservationsWithRelations,
@@ -87,21 +92,14 @@ function formatStayPeriod(checkIn: string, checkOut: string): string {
   return `${startLabel} a ${end.toLocaleDateString('pt-BR')}`
 }
 
-/** Mensagens de erro lançadas com `raise exception` nas funções RPC (checkin/checkout/cancel) chegam em `error.message`. */
-function rpcErrorMessage(error: unknown, fallback: string): string {
-  if (typeof error === 'object' && error !== null && 'message' in error) {
-    const message = (error as { message?: string }).message
-    if (message) return message
-  }
-  return fallback
-}
-
 export function ReservationsPage() {
   const { profile } = useAuth()
   const isStaff = !!profile && STAFF_ROLES.includes(profile.role)
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
   const confirm = useConfirm()
+  const actor = useActor()
+  const online = useIsOnline()
   const [searchParams] = useSearchParams()
 
   const [search, setSearch] = React.useState(() => searchParams.get('q') ?? '')
@@ -116,32 +114,15 @@ export function ReservationsPage() {
   const { data: rooms } = useQuery({ queryKey: ['rooms-select'], queryFn: fetchRoomsForSelect })
   const { data: hotel } = useQuery({ queryKey: ['hotel'], queryFn: fetchHotel })
 
+  // Ações que funcionam sem internet: mudam a cópia local na hora e entram no caderninho de envio.
   const cancelReservation = useMutation({
-    mutationFn: async ({
-      id,
-      reason,
-      notes,
-    }: {
-      id: string
-      reason: CancellationReason
-      notes: string
-    }) => {
-      const { error } = await supabase.rpc('cancel_reservation', {
-        p_reservation_id: id,
-        p_reason: reason,
-        p_notes: notes.trim() || null,
-      })
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reservations'] })
-      queryClient.invalidateQueries({ queryKey: ['rooms-select'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard-room-stats'] })
-      toast.success('Reserva cancelada.')
-    },
-    onError: (error) => toast.error(rpcErrorMessage(error, 'Não foi possível cancelar a reserva.')),
+    mutationFn: ({ id, reason, notes }: { id: string; reason: CancellationReason; notes: string }) =>
+      actions.cancelReservation(actions.requireActor(actor), id, reason, notes),
+    onSuccess: () => toast.success('Reserva cancelada.'),
+    onError: (error) => toast.error(actions.actionErrorMessage(error, 'Não foi possível cancelar a reserva.')),
   })
 
+  // Excluir continua precisando de internet (botão apagado sem conexão).
   const deleteReservation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('reservations').delete().eq('id', id)
@@ -149,6 +130,7 @@ export function ReservationsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reservations'] })
+      emitServerChange()
       toast.success('Reserva excluída.')
     },
     onError: (error) => {
@@ -164,46 +146,23 @@ export function ReservationsPage() {
   })
 
   const checkinReservation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc('checkin_reservation', { p_reservation_id: id })
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reservations'] })
-      queryClient.invalidateQueries({ queryKey: ['rooms-select'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard-room-stats'] })
-      toast.success('Check-in realizado.')
-    },
-    onError: (error) => toast.error(rpcErrorMessage(error, 'Não foi possível fazer o check-in.')),
+    mutationFn: (id: string) => actions.checkinReservation(actions.requireActor(actor), id),
+    onSuccess: () => toast.success('Check-in realizado.'),
+    onError: (error) => toast.error(actions.actionErrorMessage(error, 'Não foi possível fazer o check-in.')),
   })
 
   const checkoutReservation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc('checkout_reservation', { p_reservation_id: id })
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reservations'] })
-      queryClient.invalidateQueries({ queryKey: ['rooms-select'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard-room-stats'] })
-      toast.success('Check-out realizado.')
-    },
-    onError: (error) => toast.error(rpcErrorMessage(error, 'Não foi possível fazer o check-out.')),
+    mutationFn: (id: string) => actions.checkoutReservation(actions.requireActor(actor), id),
+    onSuccess: () => toast.success('Check-out realizado.'),
+    onError: (error) => toast.error(actions.actionErrorMessage(error, 'Não foi possível fazer o check-out.')),
   })
 
   const toggleInvoiceIssued = useMutation({
-    mutationFn: async ({ id, invoiceIssued }: { id: string; invoiceIssued: boolean }) => {
-      const { error } = await supabase
-        .from('reservations')
-        .update({ invoice_issued: invoiceIssued, invoice_issued_at: invoiceIssued ? new Date().toISOString() : null })
-        .eq('id', id)
-      if (error) throw error
-    },
-    onSuccess: (_data, { invoiceIssued }) => {
-      queryClient.invalidateQueries({ queryKey: ['reservations'] })
-      toast.success(invoiceIssued ? 'Nota fiscal marcada como emitida.' : 'Nota fiscal marcada como pendente.')
-    },
-    onError: () => toast.error('Não foi possível atualizar a nota fiscal.'),
+    mutationFn: ({ id, invoiceIssued }: { id: string; invoiceIssued: boolean }) =>
+      actions.setInvoiceIssued(actions.requireActor(actor), id, invoiceIssued),
+    onSuccess: (_data, { invoiceIssued }) =>
+      toast.success(invoiceIssued ? 'Nota fiscal marcada como emitida.' : 'Nota fiscal marcada como pendente.'),
+    onError: (error) => toast.error(actions.actionErrorMessage(error, 'Não foi possível atualizar a nota fiscal.')),
   })
 
   const filteredReservations = React.useMemo(() => {
@@ -329,6 +288,7 @@ export function ReservationsPage() {
                           {reservation.status === 'confirmada' && reservation.check_in < todayStr && (
                             <Badge variant="destructive">Atrasada</Badge>
                           )}
+                          <PendingBadge entity={`reservations:${reservation.id}`} />
                         </div>
                         {reservation.status === 'cancelada' && reservation.cancellation_reason && (
                           <div className="text-xs text-muted-foreground">
@@ -379,6 +339,8 @@ export function ReservationsPage() {
                             <Button
                               variant="destructive"
                               size="sm"
+                              disabled={!online}
+                              title={online ? undefined : OFFLINE_HINT}
                               onClick={async () => {
                                 const ok = await confirm({
                                   title: 'Excluir esta reserva?',
@@ -583,6 +545,7 @@ function ReservationDialog({
   rooms: RoomOption[]
 }) {
   const queryClient = useQueryClient()
+  const actor = useActor()
   const [open, setOpen] = React.useState(false)
   const isEdit = !!reservation
 
@@ -625,7 +588,7 @@ function ReservationDialog({
 
   const saveReservation = useMutation({
     mutationFn: async (values: ReservationInput) => {
-      const payload = {
+      const fields: actions.ReservationFields = {
         guest_id: values.guest_id,
         room_id: values.room_id,
         check_in: values.check_in,
@@ -633,31 +596,19 @@ function ReservationDialog({
         adults: values.adults,
         children: values.children,
         daily_rate: values.daily_rate,
-        status: values.status,
         occupant_name: values.occupant_name || null,
         notes: values.notes || null,
       }
-      const { error } = isEdit
-        ? await supabase.from('reservations').update(payload).eq('id', reservation.id)
-        : await supabase.from('reservations').insert(payload)
-      if (error) throw error
+      const who = actions.requireActor(actor)
+      if (reservation) await actions.updateReservation(who, reservation.id, fields)
+      else await actions.createReservation(who, fields)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reservations'] })
       toast.success(isEdit ? 'Reserva atualizada.' : 'Reserva criada.')
       reset()
       setOpen(false)
     },
-    onError: (error) => {
-      const code = errorCode(error)
-      if (code === '23P01') {
-        toast.error('Esse quarto já está reservado nesse período.')
-      } else if (code === '23514') {
-        toast.error('A data de saída precisa ser depois da entrada.')
-      } else {
-        toast.error('Não foi possível salvar a reserva.')
-      }
-    },
+    onError: (error) => toast.error(actions.actionErrorMessage(error, 'Não foi possível salvar a reserva.')),
   })
 
   return (
@@ -855,6 +806,7 @@ function GroupReservationDialog({
   rooms: RoomOption[]
 }) {
   const queryClient = useQueryClient()
+  const actor = useActor()
   const [open, setOpen] = React.useState(false)
   // roomId -> nome do ocupante (chave presente = quarto marcado; valor pode ser vazio)
   const [selectedRooms, setSelectedRooms] = React.useState<Map<string, string>>(new Map())
@@ -920,43 +872,26 @@ function GroupReservationDialog({
         )
       )
       const seasonalRates = await fetchSeasonalRatesForDate(roomTypeIds, values.check_in)
-      const rows = Array.from(selectedRooms.entries()).map(([roomId, occupantName]) => {
+      const groupRooms = Array.from(selectedRooms.entries()).map(([roomId, occupantName]) => {
         const room = rooms.find((r) => r.id === roomId)
         const roomTypeId = room?.room_types?.id
         const rate = (roomTypeId ? seasonalRates.get(roomTypeId) : undefined) ?? room?.room_types?.base_price ?? 0
-        return {
-          guest_id: values.guest_id,
-          room_id: roomId,
-          check_in: values.check_in,
-          check_out: values.check_out,
-          adults: 1,
-          children: 0,
-          daily_rate: rate,
-          status: 'confirmada' as const,
-          occupant_name: occupantName.trim() || null,
-        }
+        return { room_id: roomId, occupant_name: occupantName.trim() || null, daily_rate: rate }
       })
-      const { error } = await supabase.from('reservations').insert(rows)
-      if (error) throw error
-      return rows.length
+      return actions.createGroupReservations(actions.requireActor(actor), {
+        guest_id: values.guest_id,
+        check_in: values.check_in,
+        check_out: values.check_out,
+        rooms: groupRooms,
+      })
     },
     onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ['reservations'] })
       toast.success(`${count} reserva${count > 1 ? 's' : ''} criada${count > 1 ? 's' : ''}.`)
       reset()
       setSelectedRooms(new Map())
       setOpen(false)
     },
-    onError: (error) => {
-      const code = errorCode(error)
-      if (code === '23P01') {
-        toast.error(
-          'Um dos quartos escolhidos acabou de ser reservado por outra pessoa. Reabra o formulário e tente de novo.'
-        )
-      } else {
-        toast.error('Não foi possível criar as reservas do grupo.')
-      }
-    },
+    onError: (error) => toast.error(actions.actionErrorMessage(error, 'Não foi possível criar as reservas do grupo.')),
   })
 
   return (

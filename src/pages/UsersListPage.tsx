@@ -23,6 +23,7 @@ import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { supabase } from '@/lib/supabase'
 import { createUserSchema, type CreateUserInput } from '@/lib/validations'
+import { OFFLINE_HINT, useIsOnline } from '@/offline/sync-context'
 import { ROLE_LABELS, ROLES, type Profile, type Role } from '@/types/auth'
 
 async function fetchProfiles(): Promise<Profile[]> {
@@ -36,7 +37,7 @@ async function fetchProfiles(): Promise<Profile[]> {
 
 export function UsersListPage() {
   const queryClient = useQueryClient()
-  const { data: profiles, isLoading } = useQuery({
+  const { data: profiles, isLoading, isError } = useQuery({
     queryKey: ['profiles'],
     queryFn: fetchProfiles,
   })
@@ -58,6 +59,7 @@ export function UsersListPage() {
       <PageHeader title="Usuários" description="Quem tem acesso ao sistema e com qual papel." actions={<CreateUserDialog />} />
 
       {isLoading && <p className="text-sm text-muted-foreground">Carregando usuários...</p>}
+      {isError && <p className="text-sm text-muted-foreground">Precisa de internet para abrir esta tela.</p>}
 
       {profiles && profiles.length > 0 && (
         <Table>
@@ -102,6 +104,7 @@ export function UsersListPage() {
 
 function CreateUserDialog() {
   const queryClient = useQueryClient()
+  const online = useIsOnline()
   const [open, setOpen] = React.useState(false)
 
   const {
@@ -132,7 +135,9 @@ function CreateUserDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>Novo usuário</Button>
+        <Button disabled={!online} title={online ? undefined : OFFLINE_HINT}>
+          Novo usuário
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -197,6 +202,7 @@ function EditUserDialog({
   profile: Profile
   onSave: (changes: Partial<Pick<Profile, 'role' | 'active'>>) => void
 }) {
+  const online = useIsOnline()
   const [open, setOpen] = React.useState(false)
   const [role, setRole] = React.useState<Role>(profile.role)
   const [active, setActive] = React.useState(profile.active)
@@ -204,7 +210,7 @@ function EditUserDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" disabled={!online} title={online ? undefined : OFFLINE_HINT}>
           Editar
         </Button>
       </DialogTrigger>

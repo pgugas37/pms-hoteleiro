@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import * as React from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -18,16 +18,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatCnpj, formatCpf } from '@/lib/format'
-import { supabase } from '@/lib/supabase'
 import { guestSchema, type GuestInput } from '@/lib/validations'
+import * as actions from '@/offline/actions'
+import { useActor } from '@/offline/use-actor'
 import { DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, type DocumentType, type Guest } from '@/types/guest'
-
-function errorCode(error: unknown): string | undefined {
-  if (typeof error === 'object' && error !== null && 'code' in error) {
-    return (error as { code?: string }).code
-  }
-  return undefined
-}
 
 function formatDocumentNumber(type: DocumentType, value: string) {
   if (type === 'cpf') return formatCpf(value)
@@ -44,7 +38,7 @@ interface GuestDialogProps {
 }
 
 export function GuestDialog({ guest, trigger, onSaved }: GuestDialogProps) {
-  const queryClient = useQueryClient()
+  const actor = useActor()
   const [open, setOpen] = React.useState(false)
   const isEdit = !!guest
 
@@ -83,9 +77,10 @@ export function GuestDialog({ guest, trigger, onSaved }: GuestDialogProps) {
 
   const documentType = watch('document_type')
 
+  // Funciona sem internet: grava na cópia local e entra no caderninho de envio.
   const saveGuest = useMutation({
     mutationFn: async (values: GuestInput): Promise<Guest> => {
-      const payload = {
+      const fields: actions.GuestFields = {
         full_name: values.full_name,
         document_type: values.document_type,
         document_number: values.document_number,
@@ -95,27 +90,16 @@ export function GuestDialog({ guest, trigger, onSaved }: GuestDialogProps) {
         nationality: values.nationality,
         notes: values.notes || null,
       }
-      const { data, error } = isEdit
-        ? await supabase.from('guests').update(payload).eq('id', guest.id).select().single()
-        : await supabase.from('guests').insert(payload).select().single()
-      if (error) throw error
-      return data as Guest
+      const who = actions.requireActor(actor)
+      return guest ? actions.updateGuest(who, guest.id, fields) : actions.createGuest(who, fields)
     },
     onSuccess: (savedGuest) => {
-      queryClient.invalidateQueries({ queryKey: ['guests'] })
-      queryClient.invalidateQueries({ queryKey: ['guests-select'] })
       toast.success(isEdit ? 'Hóspede atualizado.' : 'Hóspede cadastrado.')
       reset()
       setOpen(false)
       onSaved?.(savedGuest)
     },
-    onError: (error) => {
-      toast.error(
-        errorCode(error) === '23505'
-          ? 'Já existe um hóspede com esse documento.'
-          : 'Não foi possível salvar o hóspede.'
-      )
-    },
+    onError: (error) => toast.error(actions.actionErrorMessage(error, 'Não foi possível salvar o hóspede.')),
   })
 
   return (

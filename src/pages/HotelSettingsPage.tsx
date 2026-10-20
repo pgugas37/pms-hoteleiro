@@ -15,12 +15,15 @@ import { formatCep, formatCnpj } from '@/lib/format'
 import { fetchHotel } from '@/lib/hotel'
 import { supabase } from '@/lib/supabase'
 import { hotelSchema, type HotelInput } from '@/lib/validations'
+import { emitServerChange } from '@/offline/events'
+import { OFFLINE_HINT, useIsOnline } from '@/offline/sync-context'
 import { BRAZIL_STATES, BRAZIL_TIMEZONES } from '@/types/hotel'
 
 export function HotelSettingsPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
+  const online = useIsOnline()
 
   const { data: hotel, isLoading } = useQuery({ queryKey: ['hotel'], queryFn: fetchHotel })
 
@@ -87,6 +90,7 @@ export function HotelSettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hotel'] })
+      emitServerChange()
       toast.success(hotel ? 'Dados do hotel atualizados.' : 'Hotel cadastrado com sucesso.')
     },
     onError: () => toast.error('Não foi possível salvar os dados do hotel.'),
@@ -227,7 +231,7 @@ export function HotelSettingsPage() {
               </div>
 
               {isAdmin && (
-                <Button type="submit" disabled={saveHotel.isPending}>
+                <Button type="submit" disabled={saveHotel.isPending || !online} title={online ? undefined : OFFLINE_HINT}>
                   {saveHotel.isPending ? 'Salvando...' : hotel ? 'Salvar alterações' : 'Cadastrar hotel'}
                 </Button>
               )}

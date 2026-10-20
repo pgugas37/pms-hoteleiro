@@ -24,7 +24,10 @@ import { useAuth } from '@/lib/auth-context'
 import { formatCurrency } from '@/lib/format'
 import { reservationStatusVariant } from '@/lib/status'
 import { supabase } from '@/lib/supabase'
+import { PendingBadge } from '@/components/PendingBadge'
+import { emitServerChange } from '@/offline/events'
 import { listGuests, listReservationsWithRelations } from '@/offline/queries'
+import { OFFLINE_HINT, useIsOnline } from '@/offline/sync-context'
 import { DOCUMENT_TYPE_LABELS, type Guest } from '@/types/guest'
 import type { Role } from '@/types/auth'
 import {
@@ -66,6 +69,7 @@ export function GuestsPage() {
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
   const confirm = useConfirm()
+  const online = useIsOnline()
   const [searchParams] = useSearchParams()
   const [search, setSearch] = React.useState(() => searchParams.get('q') ?? '')
 
@@ -106,6 +110,7 @@ export function GuestsPage() {
     onSuccess: (_data, { active }) => {
       queryClient.invalidateQueries({ queryKey: ['guests'] })
       queryClient.invalidateQueries({ queryKey: ['guests-select'] })
+      emitServerChange()
       toast.success(active ? 'Hóspede reativado.' : 'Hóspede inativado.')
     },
     onError: () => toast.error('Não foi possível atualizar o status do hóspede.'),
@@ -148,7 +153,12 @@ export function GuestsPage() {
               <TableBody>
                 {filteredGuests.map((guest) => (
                   <TableRow key={guest.id}>
-                    <TableCell>{guest.full_name}</TableCell>
+                    <TableCell>
+                      {guest.full_name}
+                      <div>
+                        <PendingBadge entity={`guests:${guest.id}`} />
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {DOCUMENT_TYPE_LABELS[guest.document_type]}: {guest.document_number}
                     </TableCell>
@@ -183,6 +193,8 @@ export function GuestsPage() {
                           <Button
                             variant="outline"
                             size="sm"
+                            disabled={!online}
+                            title={online ? undefined : OFFLINE_HINT}
                             onClick={async () => {
                               const action = guest.active ? 'Inativar' : 'Reativar'
                               const ok = await confirm({

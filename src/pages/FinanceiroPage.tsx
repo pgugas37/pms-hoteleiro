@@ -31,7 +31,12 @@ import { generateMonthlyReportPdf } from '@/lib/monthlyReport'
 import { generatePaymentReceiptPdf } from '@/lib/receipt'
 import { supabase } from '@/lib/supabase'
 import { paymentSchema, type PaymentInput } from '@/lib/validations'
+import { PendingBadge } from '@/components/PendingBadge'
+import * as actions from '@/offline/actions'
+import { emitServerChange } from '@/offline/events'
 import { countRooms, listGuests, listPaymentsWithReservation, listReservationsWithRelations } from '@/offline/queries'
+import { OFFLINE_HINT, useIsOnline } from '@/offline/sync-context'
+import { useActor } from '@/offline/use-actor'
 import type { Role } from '@/types/auth'
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, type PaymentWithReservation } from '@/types/payment'
 import {
@@ -167,14 +172,6 @@ async function fetchNewGuestsCount(start: string, end: string): Promise<number> 
   }).length
 }
 
-function rpcErrorMessage(error: unknown, fallback: string): string {
-  if (typeof error === 'object' && error !== null && 'message' in error) {
-    const message = (error as { message?: string }).message
-    if (message) return message
-  }
-  return fallback
-}
-
 /** Números em CSV pt-BR (separador ";") usam vírgula como separador decimal. */
 function toCsvAmount(value: number): string {
   return value.toFixed(2).replace('.', ',')
@@ -186,6 +183,7 @@ export function FinanceiroPage() {
   const isAdmin = profile?.role === 'admin'
   const queryClient = useQueryClient()
   const confirm = useConfirm()
+  const online = useIsOnline()
 
   const [periodMode, setPeriodMode] = React.useState<PeriodMode>('tudo')
   const [customStart, setCustomStart] = React.useState('')
@@ -339,6 +337,7 @@ export function FinanceiroPage() {
       queryClient.invalidateQueries({ queryKey: ['payments'] })
       queryClient.invalidateQueries({ queryKey: ['billing-reservations'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-revenue'] })
+      emitServerChange()
       toast.success('Pagamento excluído.')
     },
     onError: () => toast.error('Não foi possível excluir o pagamento.'),
@@ -570,7 +569,12 @@ export function FinanceiroPage() {
                   <TableBody>
                     {(payments ?? []).map((payment) => (
                       <TableRow key={payment.id}>
-                        <TableCell className="whitespace-nowrap">{new Date(payment.created_at).toLocaleString('pt-BR')}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {new Date(payment.created_at).toLocaleString('pt-BR')}
+                          <div>
+                            <PendingBadge entity={`payments:${payment.id}`} />
+                          </div>
+                        </TableCell>
                         <TableCell className="min-w-[160px] max-w-[260px] font-medium [overflow-wrap:anywhere]">
                           {payment.reservations?.guests?.full_name ?? '—'}
                         </TableCell>
@@ -594,6 +598,8 @@ export function FinanceiroPage() {
                               <Button
                                 variant="destructive"
                                 size="sm"
+                                disabled={!online}
+                                title={online ? undefined : OFFLINE_HINT}
                                 onClick={async () => {
                                   const ok = await confirm({
                                     title: 'Excluir este pagamento?',
@@ -794,7 +800,7 @@ function RegisterPaymentDialog({
   guestName: string
   defaultAmount: number
 }) {
-  const queryClient = useQueryClient()
+  const actor = useActor()
   const [open, setOpen] = React.useState(false)
 
   const {
@@ -813,24 +819,20 @@ function RegisterPaymentDialog({
     if (open) reset({ amount: Math.max(0, Number(defaultAmount.toFixed(2))), method: 'pix', notes: '' })
   }, [open, defaultAmount, reset])
 
+  // Funciona sem internet: o pagamento ganha a etiqueta no aparelho (o recibo sai com o mesmo número).
   const registerPayment = useMutation({
-    mutationFn: async (values: PaymentInput) => {
-      const { error } = await supabase.rpc('register_payment', {
-        p_reservation_id: reservationId,
-        p_amount: values.amount,
-        p_method: values.method,
-        p_notes: values.notes || null,
-      })
-      if (error) throw error
-    },
+    mutationFn: (values: PaymentInput) =>
+      actions.registerPayment(actions.requireActor(actor), {
+        reservation_id: reservationId,
+        amount: values.amount,
+        method: values.method,
+        notes: values.notes ?? '',
+      }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['payments'] })
-      queryClient.invalidateQueries({ queryKey: ['billing-reservations'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard-revenue'] })
       toast.success('Pagamento registrado.')
       setOpen(false)
     },
-    onError: (error) => toast.error(rpcErrorMessage(error, 'Não foi possível registrar o pagamento.')),
+    onError: (error) => toast.error(actions.actionErrorMessage(error, 'Não foi possível registrar o pagamento.')),
   })
 
   return (
@@ -883,8 +885,10 @@ function RegisterPaymentDialog({
   )
 }
 
+/** Editar pagamento continua precisando de internet (só admin). */
 function EditPaymentDialog({ payment }: { payment: PaymentWithReservation }) {
   const queryClient = useQueryClient()
+  const online = useIsOnline()
   const [open, setOpen] = React.useState(false)
 
   const {
@@ -915,6 +919,7 @@ function EditPaymentDialog({ payment }: { payment: PaymentWithReservation }) {
       queryClient.invalidateQueries({ queryKey: ['payments'] })
       queryClient.invalidateQueries({ queryKey: ['billing-reservations'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-revenue'] })
+      emitServerChange()
       toast.success('Pagamento atualizado.')
       setOpen(false)
     },
@@ -924,7 +929,7 @@ function EditPaymentDialog({ payment }: { payment: PaymentWithReservation }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" disabled={!online} title={online ? undefined : OFFLINE_HINT}>
           Editar
         </Button>
       </DialogTrigger>
